@@ -1,0 +1,51 @@
+// Included after importing a concrete NttSpec instance. Every rule is proved.
+let formula t = rewrite (cryptol_ss ()) (unfold_term ["modulus", "modulusInteger"] t);
+print "Checking the root, inverse root, and inverse length";
+parameter_facts <- prove_print z3 {{ validParameters }};
+print "Proving scalar representation and range lemmas";
+
+// Expose reductions as x - q*(x/q), so polynomial normalization can cancel
+// multiples of q. This works over composite moduli as well as prime fields.
+value_repr <- prove_print cvc5 (formula
+  {{ \(x : Integer) -> value (repr x) == x - modulusInteger * (x / modulusInteger) }});
+repr_range <- prove_print cvc5 (formula
+  {{ \(x : Integer) -> (repr x < modulus) == True }});
+normalize_range <- prove_print cvc5 (formula
+  {{ \(x : [64]) -> (normalize x < modulus) == True }});
+normalize_repr <- prove_print cvc5
+  {{ \(x : Integer) -> normalize (repr x) == repr x }};
+
+print "Evaluating the concrete root powers";
+let constant_terms = eval_list (term_eval {{ constants }});
+print "Proving conversions of the concrete root powers";
+// Prove the conversion once, then specialize it to each literal. Re-running a
+// separate proof for every power makes setup grow prohibitively with the length.
+enable_experimental;
+value_definition <- prove_print (do { goal_eval; trivial; })
+  {{ \(x : [64]) -> value x == toInteger x }};
+constant_values <- for constant_terms (\c -> specialize_theorem value_definition [c]);
+repr_x <- fresh_symbolic "x" {| Integer |};
+repr_y <- fresh_symbolic "y" {| Integer |};
+repr_equal <- prove_print cvc5 (abstract_symbolic (term_eval_unint ["repr"]
+  {{ (repr repr_x == repr repr_y) ==
+     (repr_x % modulusInteger == repr_y % modulusInteger) }}));
+mod_idempotent <- prove_print z3 (formula
+  {{ \(x : Integer) -> (x % modulusInteger) % modulusInteger == x % modulusInteger }});
+mod_add_left <- prove_print z3 (formula
+  {{ \(x : Integer) (y : Integer) -> (x % modulusInteger + y) % modulusInteger == (x + y) % modulusInteger }});
+mod_add_right <- prove_print z3 (formula
+  {{ \(x : Integer) (y : Integer) -> (x + y % modulusInteger) % modulusInteger == (x + y) % modulusInteger }});
+mod_mul_left <- prove_print cvc5 (formula
+  {{ \(x : Integer) (y : Integer) -> ((x % modulusInteger) * y) % modulusInteger == (x * y) % modulusInteger }});
+mod_mul_right <- prove_print cvc5 (formula
+  {{ \(x : Integer) (y : Integer) -> (x * (y % modulusInteger)) % modulusInteger == (x * y) % modulusInteger }});
+distribute_left <- prove_print z3 (formula
+  {{ \(x : Integer) (y : Integer) (z : Integer) -> x * (y + z) == x * y + x * z }});
+distribute_right <- prove_print z3 (formula
+  {{ \(x : Integer) (y : Integer) (z : Integer) -> (x + y) * z == x * z + y * z }});
+let arithmetic_ss = addsimps
+  (concat constant_values
+    [repr_range, normalize_range, normalize_repr, value_repr, repr_equal,
+     mod_idempotent, mod_add_left, mod_add_right, mod_mul_left, mod_mul_right]) (cryptol_ss ());
+let polynomial_ss = addsimps [distribute_left, distribute_right] arithmetic_ss;
+print "Verified parameter and arithmetic lemmas";

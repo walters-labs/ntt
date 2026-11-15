@@ -1,0 +1,26 @@
+import "ScalarSpec.cry";
+m <- mir_load_module (get_opt 1);
+let normalize_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p }};
+  mir_execute_func [mir_term a, mir_term p];
+  mir_return (mir_term {{ normalize p a }});
+  mir_postcond {{ normalize p a < p }};
+};
+let binary_spec operation = do {
+  a <- mir_fresh_var "a" mir_i64;
+  b <- mir_fresh_var "b" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p && (a < p) && (b < p) }};
+  mir_execute_func [mir_term a, mir_term b, mir_term p];
+  mir_return (mir_term {{ operation p a b }});
+  mir_postcond {{ operation p a b < p }};
+};
+normalize_verified <- timeout 120000 (mir_verify m "ntt::mod_normalize" [] false normalize_spec cvc5);
+add_verified <- timeout 120000 (mir_verify m "ntt::mod_add" [] false (binary_spec {{ add }}) cvc5);
+sub_verified <- timeout 120000 (mir_verify m "ntt::mod_sub" [] false (binary_spec {{ sub }}) cvc5);
+include "scalar-mul-proof.saw";
+mul_verified <- timeout 120000 (mir_verify m "ntt::mod_mul" [] false (binary_spec {{ mul }}) generic_mul_proof);
+print "Verified all four scalar helpers for every modulus 2 <= p <= i64::MAX";
+include "butterflies-general.saw";

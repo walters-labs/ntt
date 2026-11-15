@@ -1,0 +1,14 @@
+// Prove the stage model equals the independent direct formulas, then use the
+// model only to assemble the verified Rust stages into whole slice kernels.
+let model_proof = do {
+  unfolding ["forward", "inverse", "dft", "permute", "bitReverse",
+             "stagedForward", "stagedInverse", "stageSteps"];
+  stage_algebra;
+};
+print "Proving the forward stage model against the direct DFT";
+forward_model <- timeout 600000 (prove_print model_proof (formula
+  {{ \(a : Poly) -> forward a == stagedForward a }}));
+print "Verified forward stage model; proving the inverse model";
+inverse_model <- timeout 600000 (prove_print model_proof (formula
+  {{ \(a : Poly) -> inverse a == stagedInverse a }}));
+print "Verified staged transforms against the independent DFT formulas";

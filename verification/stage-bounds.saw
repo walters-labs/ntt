@@ -1,0 +1,57 @@
+// Prove one bounds rule and specialize it to the two indices and twiddle of
+// each butterfly. This avoids starting an SMT solver for every input check.
+// The implication is a SAWCore proposition so goal_apply_hyp can apply it;
+// prove_print establishes the rule before any stage contract uses it.
+stage_bounds_input <- define "stage_bounds_input" (formula
+  {{ \(j : [64]) (k : [64]) (w : Coeff) (a : Poly) ->
+     canonical a && ((j < fromInteger size) && ((k < fromInteger size) && (w < modulus))) }});
+stage_bounds_output <- define "stage_bounds_output" (formula
+  {{ \(j : [64]) (k : [64]) (w : Coeff) (a : Poly) ->
+     ((a @ j) < modulus) && (((a @ k) < modulus) && (w < modulus)) }});
+let stage_bounds_rule = parse_core (str_concat
+  "(j : Vec 64 Bool) -> (k : Vec 64 Bool) -> (w : Vec 64 Bool) -> (a : Vec "
+  (str_concat (show n)
+   " (Vec 64 Bool)) -> EqTrue (stage_bounds_input j k w a) -> EqTrue (stage_bounds_output j k w a)"));
+canonical_pair_bounds <- prove_print (do {
+  unfolding ["canonical", "modulus", "modulusInteger", "size"];
+  w4_unint_z3 [];
+}) (rewrite (cryptol_ss ())
+    (unfold_term ["stage_bounds_input", "stage_bounds_output",
+                  "modulus", "modulusInteger", "size"] stage_bounds_rule));
+print "Verified stage input bounds lemma";
+
+let stage_bounds inverse_direction step = do {
+  let ws = if inverse_direction then {{ inverseTwiddles }} else {{ forwardTwiddles }};
+  // Evaluate the whole table once, rather than re-evaluating twiddle powers
+  // and type-checking separate Cryptol expressions for every butterfly.
+  let triples = eval_list (term_eval
+    {{ [[j, j + `step, ws @ ((i % `step) * (`n / (2 * `step))) ]
+        | i <- ([0 .. N/2-1] : [N/2][64])
+        | j <- [(i / `step) * (2 * `step) + (i % `step)
+                 | i <- ([0 .. N/2-1] : [N/2][64])]] }});
+  for triples (\triple -> specialize_theorem canonical_pair_bounds (eval_list triple));
+};
+let stage_range_goal = eval_int {{ `half_n + 1 : [64] }};
+let stage_bounds_proof bounds = do {
+  ix <- goal_num;
+  normalize_sequent;
+  // Each butterfly reads a disjoint pair of original input coefficients.
+  // Keep the input's canonicality hypothesis; earlier butterfly results are
+  // unnecessary. Dropping hypotheses strengthens the obligation.
+  retain_hyps [0];
+  goal_insert (nth bounds ix);
+  goal_eval_unint ["canonical"];
+  focus_concl 0;
+  goal_apply_hyp 1;
+  // Discharge the concrete index/twiddle bounds, then use input canonicality.
+  goal_eval_unint ["canonical"];
+  goal_apply_hyp 0;
+};
+// SAW 1.6 numbers the butterfly checks 0..half_n-1, followed by the result
+// and output-range checks. Its vacuity check also uses 0. Leave those checks
+// with the solver. A numbering or indexing mismatch makes rule application
+// fail; this dispatch never admits or discards a proof obligation.
+let stage_proof bounds =
+  goal_num_ite 0 stage_solver_proof
+    (goal_num_ite half_n stage_solver_proof
+      (goal_num_ite stage_range_goal stage_solver_proof (stage_bounds_proof bounds)));

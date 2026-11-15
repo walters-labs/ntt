@@ -1,0 +1,51 @@
+// Each entry script imports one concrete Cryptol instance before including this.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+let suffix = str_concat (show n) (str_concat "_" (show q));
+let entry operation = str_concat "ntt::verification::" (str_concat operation suffix);
+m <- mir_load_module (get_opt 1);
+include "arithmetic.saw";
+include "lemmas.saw";
+
+let transform_proof = do {
+  unfolding ["forward", "inverse", "convolution", "dft", "indices", "bitReverse",
+             "canonical", "normalizePoly", "modulus", "modulusInteger", "size"];
+  simplify arithmetic_ss;
+  simplify basic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify polynomial_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  // Prove the final algebra for every interpretation of these conversions.
+  unint_z3 ["value", "normalize"];
+};
+let arithmetic_overrides = [normalize_verified, add_verified, sub_verified, mul_verified];
+
+let forward_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  mir_execute_func [mir_term a];
+  mir_return (mir_term {{ forward (normalizePoly a) }});
+};
+forward_verified <- timeout 600000 (mir_verify m (entry "forward_")
+  arithmetic_overrides false forward_spec transform_proof);
+print (str_concat "Verified forward NTT for all i64 inputs: " suffix);
+
+let inverse_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  mir_execute_func [mir_term a];
+  mir_return (mir_term {{ inverse (normalizePoly a) }});
+};
+inverse_verified <- timeout 600000 (mir_verify m (entry "inverse_")
+  arithmetic_overrides false inverse_spec transform_proof);
+print (str_concat "Verified inverse NTT for all i64 inputs: " suffix);
+
+let multiply_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  b <- mir_fresh_var "b" (mir_array n mir_i64);
+  mir_execute_func [mir_term a, mir_term b];
+  mir_return (mir_term {{ convolution (normalizePoly a) (normalizePoly b) }});
+};
+multiply_verified <- timeout 600000 (mir_verify m (entry "multiply_")
+  arithmetic_overrides false multiply_spec transform_proof);
+print (str_concat "Verified cyclic multiplication for all i64 inputs: " suffix);

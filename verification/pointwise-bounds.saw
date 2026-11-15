@@ -1,0 +1,44 @@
+// Both forward kernels supply canonical outputs. Prove one rule for reading
+// corresponding entries, using a log2(N)-bit index so all indices are valid.
+pointwise_canonical <- define "pointwise_canonical" {{ canonical }};
+pointwise_bounds_output <- define "pointwise_bounds_output" (formula
+  {{ \(j : [width (N-1)]) (a : Poly) (b : Poly) ->
+      ((a @ j) < modulus) && ((b @ j) < modulus) }});
+let index_bits = length steps;
+let poly_type = str_concat "Vec " (str_concat (show n) " (Vec 64 Bool)");
+let pointwise_bounds_rule = parse_core (str_concat "(j : Vec "
+  (str_concat (show index_bits) (str_concat " Bool) -> (a : "
+  (str_concat poly_type (str_concat ") -> (b : "
+  (str_concat poly_type ") -> EqTrue (pointwise_canonical a) -> EqTrue (pointwise_canonical b) -> EqTrue (pointwise_bounds_output j a b)"))))));
+pointwise_bounds <- prove_print (do {
+  unfolding ["canonical", "modulus", "modulusInteger", "size"];
+  w4_unint_z3 [];
+}) (formula (unfold_term ["pointwise_canonical", "pointwise_bounds_output"] pointwise_bounds_rule));
+let pointwise_indices = eval_list (term_eval {{ [0 .. N-1] : [N][width (N-1)] }});
+pointwise_rules <- for pointwise_indices (\j -> specialize_theorem pointwise_bounds [j]);
+let pointwise_cryptol_ss = cryptol_ss ();
+pointwise_modulus_literal <- prove_print (do { goal_eval; trivial; })
+  (rewrite pointwise_cryptol_ss {{ modulus == (`q : Coeff) }});
+let pointwise_bounds_ss = addsimp pointwise_modulus_literal pointwise_cryptol_ss;
+let pointwise_bounds_proof = do {
+  ix <- goal_num;
+  normalize_sequent;
+  // In SAW 1.6 these are the two forward-kernel output contracts.
+  // Dropping the other hypotheses strengthens the obligation.
+  retain_hyps [1, 2];
+  simplify pointwise_bounds_ss;
+  goal_insert (nth pointwise_rules ix);
+  // Normalize only this generic rule, preserving the transform expressions
+  // in the goal and its hypotheses. Apply both proved output-range facts.
+  focus_hyp 2;
+  goal_eval_unint ["canonical"];
+  focus_concl 0;
+  goal_apply_hyp 2;
+  goal_apply_hyp 0;
+  goal_apply_hyp 1;
+};
+print "Verified pointwise bounds lemma";
+// The vacuity check and first scalar check both use number 0. The return
+// equality uses N and is discharged by the proved structural identities.
+let multiply_proof = goal_num_ite 0 public_proof
+  (goal_num_ite n pointwise_result_proof pointwise_bounds_proof);

@@ -1,0 +1,74 @@
+// Prove the convolution theorem by doubling. Only the half-size theorem is
+// reused; no transform or convolution identity is assumed.
+let math_proof = do {
+  unfolding ["dftN", "idftN", "convN", "addN", "pointwise", "phase", "rotate",
+             "evens", "odds", "interleave", "combine", "halfSums", "halfDiffs", "range",
+             "modulus", "modulusInteger", "inverseTwo"];
+  simplify arithmetic_ss;
+  simplify basic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify polynomial_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  unint_z3 ["value", "normalize"];
+};
+let math_ss = cryptol_ss ();
+let math_formula t = rewrite math_ss t;
+include "vector-proofs.saw";
+let math_chunk_size = 64;
+// Bound each proof separately. A larger instance has more and larger
+// constituent identities; one overall timeout could discard completed
+// lower-length proofs before the last identity is checked.
+rec prove_convolution length_n = do {
+  let degree = length_n;
+  print (str_concat "Preparing convolution theorem at length " (show degree));
+  let root_n = eval_int {{ repr (value parameters.root ^^ (size / `degree)) }};
+  let inverse_root_n = eval_int {{ repr (value parameters.inverseRoot ^^ (size / `degree)) }};
+  let inverse_degree_n = eval_int {{ repr (value parameters.inverseLength * (size / `degree)) }};
+  let statement = math_formula {{ \(a : [degree]Coeff) (b : [degree]Coeff) ->
+    idftN `inverse_root_n `inverse_degree_n (pointwise (dftN `root_n a) (dftN `root_n b)) == convN a b }};
+  if eval_bool {{ `degree == (1 : [64]) }} then prove_vector math_chunk_size degree 2 statement
+  else do {
+    let half_degree = eval_int {{ `degree / 2 : [64] }};
+    half_convolution <- prove_convolution half_degree;
+    let root_h = eval_int {{ repr (`root_n * `root_n) }};
+    let inverse_root_h = eval_int {{ repr (`inverse_root_n * `inverse_root_n) }};
+    let inverse_degree_h = eval_int {{ repr (`inverse_degree_n * 2) }};
+    print (str_concat "Proving DFT/convolution decomposition at length " (show degree));
+    print "  Forward decomposition";
+    f_split <- prove_vector math_chunk_size degree 1 (math_formula {{ \(a : [degree]Coeff) ->
+      dftN `root_n a == combine `root_n (dftN `root_h (evens a)) (dftN `root_h (odds a)) }});
+    print "  Inverse decomposition";
+    i_split <- prove_vector math_chunk_size degree 1 (math_formula {{ \(a : [degree]Coeff) ->
+      idftN `inverse_root_n `inverse_degree_n a == interleave (idftN `inverse_root_h `inverse_degree_h (halfSums a)) (idftN `inverse_root_h `inverse_degree_h (halfDiffs `inverse_root_n a)) }});
+    print "  Inverse linearity";
+    i_add <- prove_vector math_chunk_size half_degree 2 (math_formula {{ \(a : [half_degree]Coeff) (b : [half_degree]Coeff) ->
+      idftN `inverse_root_h `inverse_degree_h (addN a b) == addN (idftN `inverse_root_h `inverse_degree_h a) (idftN `inverse_root_h `inverse_degree_h b) }});
+    print "  Inverse shift";
+    i_phase <- prove_vector math_chunk_size half_degree 1 (math_formula {{ \(a : [half_degree]Coeff) ->
+      idftN `inverse_root_h `inverse_degree_h (phase `root_h a) == rotate (idftN `inverse_root_h `inverse_degree_h a) }});
+    print "  Schoolbook convolution decomposition";
+    c_split <- prove_vector math_chunk_size degree 2 (math_formula {{ \(a : [degree]Coeff) (b : [degree]Coeff) ->
+      interleave (addN (convN (evens a) (evens b)) (rotate (convN (odds a) (odds b))))
+                 (addN (convN (evens a) (odds b)) (convN (odds a) (evens b))) == convN a b }});
+    print "  Spectral product sums";
+    p_sums <- prove_vector math_chunk_size half_degree 4 (math_formula {{ \(a : [half_degree]Coeff) (b : [half_degree]Coeff) (c : [half_degree]Coeff) (d : [half_degree]Coeff) ->
+      halfSums (pointwise (combine `root_n a b) (combine `root_n c d)) ==
+      addN (pointwise a c) (phase `root_h (pointwise b d)) }});
+    print "  Spectral product differences";
+    p_diffs <- prove_vector math_chunk_size half_degree 4 (math_formula {{ \(a : [half_degree]Coeff) (b : [half_degree]Coeff) (c : [half_degree]Coeff) (d : [half_degree]Coeff) ->
+      halfDiffs `inverse_root_n (pointwise (combine `root_n a b) (combine `root_n c d)) ==
+      addN (pointwise a d) (pointwise b c) }});
+    let convolution_ss = addsimps [f_split, i_split, i_add, i_phase, p_sums, p_diffs, half_convolution, c_split] (cryptol_ss ());
+    degree_reflexive <- prove_print (do { goal_eval; trivial; })
+      (math_formula {{ \(a : [degree]Coeff) -> (a == a) == True }});
+    result <- timeout 600000 (prove_print (do {
+      simplify (addsimp degree_reflexive convolution_ss);
+      trivial;
+    }) statement);
+    print (str_concat "Verified cyclic convolution theorem at length " (show degree));
+    return result;
+  };
+};
+convolution_theorem <- prove_convolution n;

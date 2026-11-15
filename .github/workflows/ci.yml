@@ -16,7 +16,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: build and bun tests for ntt polynomial multiplcation
+    - name: Check formatting and lint
       run: |
-        cargo build --verbose
+        cargo fmt --check
+        cargo clippy --all-targets -- -D warnings
+
+    - name: Test debug and release arithmetic
+      run: |
         cargo test --verbose
+        cargo test --release --verbose

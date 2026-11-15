@@ -1,0 +1,6 @@
+module Ntt8 = NttSpec where
+  type logN = 3
+  type q = 17
+  root = 9
+  inverseRoot = 2
+  inverseLength = 15

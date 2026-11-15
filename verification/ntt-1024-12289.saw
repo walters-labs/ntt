@@ -1,0 +1,2 @@
+import "Ntt1024.cry";
+include "verify-staged.saw";

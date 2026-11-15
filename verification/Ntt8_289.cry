@@ -1,0 +1,6 @@
+module Ntt8_289 = NttSpec where
+  type logN = 3
+  type q = 289
+  root = 110
+  inverseRoot = 134
+  inverseLength = 253

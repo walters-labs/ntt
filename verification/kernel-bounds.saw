@@ -1,0 +1,57 @@
+// Bounds for the inverse kernel's final scalar multiplications. The index
+// word has exactly log2(N) bits, so every value is a valid array index. The
+// concrete inverse-length bound is proved as part of this rule.
+scale_canonical_named <- define "scale_canonical_named" {{ canonical }};
+scale_output_native <- define "scale_output_native" (formula
+  {{ \(j : [width (N-1)]) (a : Poly) ->
+     ((a @ j) < modulus) && (parameters.inverseLength < modulus) }});
+let scale_index_bits = length steps;
+let scale_rule_term = parse_core (str_concat "(j : Vec "
+  (str_concat (show scale_index_bits) (str_concat " Bool) -> (a : Vec "
+  (str_concat (show n) " (Vec 64 Bool)) -> EqTrue (scale_canonical_named a) -> EqTrue (scale_output_native j a)"))));
+scale_index_rule <- prove_print (do {
+  unfolding ["canonical", "modulus", "modulusInteger", "size"];
+  w4_unint_z3 [];
+}) (formula (unfold_term ["scale_canonical_named", "scale_output_native"] scale_rule_term));
+let scaling_indices = eval_list (term_eval {{ [0 .. N-1] : [N][width (N-1)] }});
+scaling_rules <- for scaling_indices (\j -> specialize_theorem scale_index_rule [j]);
+let scaling_goal_rules = concat (map (\_ -> head scaling_rules) steps) scaling_rules;
+let scaling_last_hyp = eval_int {{ `n + `scale_index_bits + 1 : [64] }};
+let scale_literal = term_eval {{ parameters.inverseLength }};
+scale_literal_range <- prove_print (do { goal_eval; trivial; })
+  (formula {{ (scale_literal < modulus) == True }});
+// Build this simplification set once, rather than once per coefficient.
+let scaling_cryptol_ss = cryptol_ss ();
+scaling_modulus_literal <- prove_print (do { goal_eval; trivial; })
+  (rewrite scaling_cryptol_ss {{ modulus == (`q : Coeff) }});
+let scaling_ss = addsimps [scaling_modulus_literal, scale_literal_range] scaling_cryptol_ss;
+let scaling_proof = do {
+  ix <- goal_num;
+  normalize_sequent;
+  retain_hyps [scaling_last_hyp];
+  simplify scaling_ss;
+  simplify basic_ss;
+  goal_insert (nth scaling_goal_rules ix);
+  // Evaluate only the rule. Evaluating the entire goal would repeatedly
+  // expand vector-valued stage applications in the kernel's input expression.
+  focus_hyp 1;
+  goal_eval_unint ["canonical"];
+  focus_concl 0;
+  goal_apply_hyp 1;
+  goal_apply_hyp 0;
+};
+// The final formulas and range hold independently of the accumulated scalar
+// hypotheses. Dropping those hypotheses strengthens these two obligations.
+let kernel_result_proof = do {
+  normalize_sequent;
+  retain_hyps [];
+  kernel_proof;
+};
+// With SAW 1.6, the first log2(N) obligations are stage input checks, followed
+// by N scalar checks and the result/range checks. Hypothesis N+log2(N)+1 is
+// the last stage's canonical-output contract. Missing or reordered obligations
+// fail rule application or list lookup; none are admitted.
+let inverse_goal_proofs = concat (map (\_ -> kernel_proof) steps)
+  (concat (map (\_ -> scaling_proof) scaling_indices) [kernel_result_proof, kernel_result_proof]);
+let inverse_kernel_proof = do { ix <- goal_num; nth inverse_goal_proofs ix; };
+print "Verified inverse scaling bounds rule";

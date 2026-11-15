@@ -1,0 +1,32 @@
+import "ScalarSpec.cry";
+m <- mir_load_module (get_opt 1);
+let normalize_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p }};
+  mir_execute_func [mir_term a, mir_term p];
+  mir_return (mir_term {{ normalize p a }});
+  mir_postcond {{ normalize p a < p }};
+};
+// i64::rem_euclid in the pinned Rust toolchain; verify before overriding it.
+rem_verified <- timeout 30000 (mir_verify m "core::num::{impl#3}::rem_euclid" [] false normalize_spec cvc5);
+let length_one_spec = do {
+  p <- mir_fresh_var "p" mir_i64;
+  root <- mir_fresh_var "root" mir_i64;
+  mir_precond {{ validModulus p && (normalize p root == 1) }};
+  mir_execute_func [mir_term root, mir_term {{ 1 : [64] }}, mir_term p];
+  mir_return (mir_term {{ True }});
+};
+length_one_verified <- timeout 30000 (mir_verify m "ntt::verify_root_of_unity" [rem_verified] false length_one_spec (w4_unint_z3 ["normalize"]));
+print "Verified length-one validation for all valid moduli and root representatives";
+
+let configurations = eval_list {{ [(1024,12289,10302), (2048,12289,1945), (2048,151019521,51689479)] : [3]([64],[64],[64]) }};
+for configurations (\configuration -> do {
+  let parameters_spec = do {
+    mir_execute_func [mir_term {{ configuration.2 }}, mir_term {{ configuration.0 }}, mir_term {{ configuration.1 }}];
+    mir_return (mir_term {{ True }});
+  };
+  _ <- timeout 30000 (mir_verify m "ntt::verify_root_of_unity" [] false parameters_spec z3);
+  return ();
+});
+print "Verified acceptance of the three default consumer transform parameter sets";

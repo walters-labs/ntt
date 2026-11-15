@@ -1,0 +1,28 @@
+// Split the word/integer bridge before applying it to the MIR obligation.
+// These lemmas are proved for the concrete imported modulus. The bound proof
+// intentionally fails for parameter sets that require the i128 multiply path.
+enable_experimental;
+product_value <- prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < modulus) && (b < modulus)) ==> value (a*b) == value a * value b }};
+product_bound <- prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < modulus) && (b < modulus)) ==> a*b < 0x8000000000000000 }};
+positive_remainder <- prove_print cvc5 {{ \(a : [64]) ->
+  (a < 0x8000000000000000) ==> (a %$ modulus) == repr (value a) }};
+mul_word_x <- fresh_symbolic "mul_word_x" {| [64] |};
+mul_word_y <- fresh_symbolic "mul_word_y" {| [64] |};
+product_remainder <- prove_print (do {
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  goal_insert_and_specialize product_value [a, b];
+  goal_insert_and_specialize product_bound [a, b];
+  goal_insert_and_specialize positive_remainder [{{ a*b }}];
+  unint_z3 ["value", "repr"];
+}) (abstract_symbolic (term_eval_unint ["value", "repr"] {{
+  (mul_word_x * mul_word_y %$ modulus) ==
+    if (mul_word_x < modulus) && (mul_word_y < modulus)
+    then repr (value mul_word_x * value mul_word_y)
+    else mul_word_x * mul_word_y %$ modulus }}));
+let mul_proof = do {
+  simplify (addsimp_shallow product_remainder (cryptol_ss ()));
+  cvc5;
+};

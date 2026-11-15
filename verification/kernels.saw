@@ -1,0 +1,33 @@
+let kernel_spec inverse_direction = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  a_ref <- mir_alloc_mut (mir_array n mir_i64);
+  twiddles_ref <- mir_alloc (mir_array half_n mir_i64);
+  let twiddles = if inverse_direction then {{ inverseTwiddles }} else {{ forwardTwiddles }};
+  let result = if inverse_direction then {{ inverse (normalizePoly a) }} else {{ forward (normalizePoly a) }};
+  mir_points_to a_ref (mir_term a);
+  mir_points_to twiddles_ref (mir_term twiddles);
+  let args = [mir_slice_value a_ref, mir_slice_value twiddles_ref, mir_term {{ modulus }}];
+  mir_execute_func (if inverse_direction then concat args [mir_term {{ parameters.inverseLength }}] else args);
+  mir_points_to a_ref (mir_term result);
+  mir_postcond {{ canonical result }};
+};
+let kernel_proof = do {
+  simplify (addsimps [forward_model, inverse_model] (cryptol_ss ()));
+  unfolding ["stagedForward", "stagedInverse", "stageSteps", "normalizePoly", "canonical",
+             "forwardStage", "inverseStage", "forwardTwiddles", "inverseTwiddles",
+             "indices", "modulus", "modulusInteger", "size"];
+  // Expand the array combinators, but keep scalar arithmetic opaque. Treating
+  // entire stages as uninterpreted vector functions creates enormous SMT terms.
+  let ranges = addsimps [repr_range, normalize_range] (cryptol_ss ());
+  simplify ranges;
+  simplify basic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify ranges;
+  unint_z3 ["value", "repr", "normalize"];
+};
+include "kernel-bounds.saw";
+forward_kernel <- timeout 600000 (mir_verify m "ntt::prepared::forward_transform"
+  (concat arithmetic_overrides forward_stages) false (kernel_spec false) kernel_proof);
+inverse_kernel <- timeout 600000 (mir_verify m "ntt::prepared::inverse_transform"
+  (concat arithmetic_overrides inverse_stages) false (kernel_spec true) inverse_kernel_proof);
+print "Verified full slice kernels for every i64 input";

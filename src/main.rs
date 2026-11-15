@@ -1,10 +1,8 @@
-mod test;
-
-use ntt::{ntt, intt , polymul, polymul_ntt, verify_root_of_unity};
+use ntt::{intt, ntt, polymul, polymul_ntt, verify_root_of_unity};
 
 fn main() {
     let modulus: i64 = 17; // modulus, n must divide phi(p^k) for each prime factor p
-    let n: usize = 8;  // Length of the NTT (must be a power of 2)
+    let n: usize = 8; // Length of the NTT (must be a power of 2)
     let omega = ntt::omega(modulus, n); // n-th root of unity
 
     // Input polynomials (padded to length `n`)
@@ -34,7 +32,10 @@ fn main() {
     let c_fast = polymul_ntt(&a, &b, n, modulus, omega);
 
     // Output the results
-    println!("verify omega = {}", verify_root_of_unity(omega, n as i64, modulus));
+    println!(
+        "verify omega = {}",
+        verify_root_of_unity(omega, n as i64, modulus)
+    );
     println!("Polynomial A: {:?}", a);
     println!("Polynomial B: {:?}", b);
     println!("Transformed A: {:?}", a_ntt);
@@ -44,5 +45,4 @@ fn main() {
     println!("Resultant Polynomial (c): {:?}", c);
     println!("Standard polynomial mult. result: {:?}", c_std);
     println!("Polynomial multiplication method using NTT: {:?}", c_fast);
-
 }

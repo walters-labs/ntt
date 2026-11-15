@@ -1,0 +1,156 @@
+module NttSpec where
+
+parameter
+  type logN : #
+  type q : #
+  type constraint (fin logN, logN >= 1, logN < 63,
+                   fin q, q >= 2, q < 2^^63)
+  root : [64]
+  inverseRoot : [64]
+  inverseLength : [64]
+
+type N = 2^^logN
+type Coeff = [64]
+type Poly = [N]Coeff
+
+size : Integer
+size = `N
+modulus : Coeff
+modulus = `q
+modulusInteger : Integer
+modulusInteger = `q
+parameters : {root : Coeff, inverseRoot : Coeff, inverseLength : Coeff}
+parameters = {root = root, inverseRoot = inverseRoot, inverseLength = inverseLength}
+
+// Canonical coefficients are interpreted as exact nonnegative integers.
+value : Coeff -> Integer
+value x = toInteger x
+repr : Integer -> Coeff
+repr x = fromInteger (x % modulusInteger)
+
+// Euclidean residue of any signed two's-complement i64, including i64::MIN.
+normalize : Coeff -> Coeff
+normalize x = if r <$ 0 then r + modulus else r
+  where r = x %$ modulus
+normalizePoly : {n} (fin n) => [n]Coeff -> [n]Coeff
+normalizePoly a = [normalize x | x <- a]
+canonical : Poly -> Bit
+canonical a = all (\x -> x < modulus) a
+validParameters : Bit
+validParameters = (root < modulus)
+               && (inverseRoot < modulus)
+               && (inverseLength < modulus)
+               && ((w ^^ size) % p == 1)
+               && ((w ^^ (size / 2)) % p == p - 1)
+               && ((w * toInteger inverseRoot) % p == 1)
+               && ((size * toInteger inverseLength) % p == 1)
+  where
+    w = toInteger root
+    p = modulusInteger
+
+indices : [N]Integer
+indices = [toInteger x | x <- ([0 .. N-1] : [N][logN])]
+bitReverse : [N]Integer
+bitReverse = [toInteger (reverse x) | x <- ([0 .. N-1] : [N][logN])]
+permute : Poly -> Poly
+permute a = a @@ bitReverse
+
+// Independent direct formulas: no radix-2 stages or butterflies.
+dft : Coeff -> Poly -> Poly
+dft w a = [repr (sum [value (a @ j) * powers @ ((j * k) % size) | j <- indices])
+           | k <- indices]
+  where powers = [toInteger w ^^ j % modulusInteger | j <- indices]
+forward : Poly -> Poly
+forward a = permute (dft root a)
+inverse : Poly -> Poly
+inverse a = [repr (value x * toInteger inverseLength) | x <- dft inverseRoot (permute a)]
+convolution : Poly -> Poly -> Poly
+convolution a b = [repr (sum [value (a @ j) * value (b @ ((k + size - j) % size))
+                            | j <- indices]) | k <- indices]
+
+// Operational model used only at stage boundaries. Whole-transform claims
+// continue to use the independent DFT and convolution formulas above.
+forwardTwiddles : [N/2]Coeff
+forwardTwiddles = [fromInteger (toInteger root ^^ j % modulusInteger)
+                   | j <- ([0 .. N/2-1] : [N/2]Integer)]
+inverseTwiddles : [N/2]Coeff
+inverseTwiddles = [fromInteger (toInteger inverseRoot ^^ j % modulusInteger)
+                   | j <- ([0 .. N/2-1] : [N/2]Integer)]
+
+forwardStage : Integer -> Poly -> Poly
+forwardStage step a = [at i | i <- indices]
+  where
+    at i = if i % (2*step) < step then repr (u + v)
+           else repr ((u - v) * value (forwardTwiddles @ (j * size / (2*step))))
+      where
+        j = i % step
+        start = i / (2*step) * (2*step)
+        u = value (a @ (start + j))
+        v = value (a @ (start + j + step))
+inverseStage : Integer -> Poly -> Poly
+inverseStage step a = [at i | i <- indices]
+  where
+    at i = if i % (2*step) < step then repr (u + v) else repr (u - v)
+      where
+        j = i % step
+        start = i / (2*step) * (2*step)
+        u = value (a @ (start + j))
+        v = value (a @ (start + j + step))
+          * value (inverseTwiddles @ (j * size / (2*step)))
+
+stageSteps : [logN]Integer
+stageSteps = [2^^(toInteger j) | j <- ([0 .. logN-1] : [logN][64])]
+stagedForward : Poly -> Poly
+stagedForward a = foldl (\xs step -> forwardStage step xs) a (reverse stageSteps)
+stagedInverse : Poly -> Poly
+stagedInverse a = [repr (value x * value inverseLength)
+                  | x <- foldl (\xs step -> inverseStage step xs) a stageSteps]
+
+// The inverse root generates the same powers in reverse order.
+constants : [N + 1]Coeff
+constants = [repr (toInteger root ^^ j) | j <- indices]
+          # [inverseLength]
+
+// Direct formulas at an arbitrary fixed length; used to prove the convolution
+// theorem by doubling the length. All arithmetic is over exact integers.
+range : {n} (fin n, n >= 1) => [n]Integer
+range = [0 .. n-1]
+
+dftN : {n} (fin n, n >= 1) => Integer -> [n]Coeff -> [n]Coeff
+dftN w a = [repr (sum [value (a @ j) * powers @ ((j*k) % `n) | j <- range`{n}])
+            | k <- range]
+  where powers : [n]Integer
+        powers = [w ^^ j % modulusInteger | j <- range]
+idftN : {n} (fin n, n >= 1) => Integer -> Integer -> [n]Coeff -> [n]Coeff
+idftN wi ni a = [repr (value x * ni) | x <- dftN wi a]
+convN : {n} (fin n, n >= 1) => [n]Coeff -> [n]Coeff -> [n]Coeff
+convN a b = [repr (sum [value (a @ j) * value (b @ ((k+`n-j) % `n))
+                      | j <- range`{n}]) | k <- range]
+
+addN : {n} (fin n) => [n]Coeff -> [n]Coeff -> [n]Coeff
+addN a b = [repr (value x + value y) | x <- a | y <- b]
+pointwise : {n} (fin n) => [n]Coeff -> [n]Coeff -> [n]Coeff
+pointwise a b = [repr (value x * value y) | x <- a | y <- b]
+phase : {n} (fin n, n >= 1) => Integer -> [n]Coeff -> [n]Coeff
+phase w a = [repr (value x * (w ^^ k % modulusInteger)) | x <- a | k <- range`{n}]
+rotate : {n} (fin n, n >= 1) => [n]Coeff -> [n]Coeff
+rotate a = a >>> (1 : [64])
+evens : {h} (fin h, h >= 1) => [2*h]Coeff -> [h]Coeff
+evens a = [a @ (2*j) | j <- range]
+odds : {h} (fin h, h >= 1) => [2*h]Coeff -> [h]Coeff
+odds a = [a @ (2*j+1) | j <- range]
+interleave : {h} (fin h) => [h]Coeff -> [h]Coeff -> [2*h]Coeff
+interleave a b = join [[x,y] | x <- a | y <- b]
+combine : {h} (fin h, h >= 1) => Integer -> [h]Coeff -> [h]Coeff -> [2*h]Coeff
+combine w a b = [repr (value x + value y * t) | x <- a | y <- b | t <- tw]
+             # [repr (value x - value y * t) | x <- a | y <- b | t <- tw]
+  where tw : [h]Integer
+        tw = [w ^^ k % modulusInteger | k <- range]
+// For the odd moduli used here, (q+1)/2 is the inverse of 2.
+inverseTwo : Integer
+inverseTwo = (modulusInteger + 1) / 2
+halfSums : {h} (fin h, h >= 1) => [2*h]Coeff -> [h]Coeff
+halfSums a = [repr ((value (a @ k) + value (a @ (k+`h))) * inverseTwo) | k <- range]
+halfDiffs : {h} (fin h, h >= 1) => Integer -> [2*h]Coeff -> [h]Coeff
+halfDiffs wi a = [repr ((value (a @ k) - value (a @ (k+`h))) * inverseTwo
+                        * (wi ^^ k % modulusInteger)) | k <- range]

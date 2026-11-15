@@ -1,0 +1,132 @@
+// Proved conversion lemmas connect native MIR bit-vectors to exact integers.
+// Keep overflow, remainder, and narrowing arguments separate: asking a solver
+// to discover all of these at once is substantially more expensive.
+enable_experimental;
+small_product_value <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < 3037000500) && (b < 3037000500)) ==> value (a*b) == value a * value b }});
+small_product_bound <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < 3037000500) && (b < 3037000500)) ==> a*b < 0x8000000000000000 }});
+small_remainder <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (p : [64]) ->
+  (validModulus p && (a < 0x8000000000000000)) ==> (a %$ p) == residue p (value a) }});
+print "Verified narrow product and remainder lemmas";
+wide_product_value <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < 0x8000000000000000) && (b < 0x8000000000000000)) ==>
+  value128 (wideProduct a b) == value a * value b }});
+wide_product_bound <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < 0x8000000000000000) && (b < 0x8000000000000000)) ==>
+  wideProduct a b < (2^^127 : [128]) }});
+
+// Remainders and narrowing preserve the exact integer residue.
+wide_positive_remainder <- timeout 30000 (prove_print cvc5 {{ \(a : [128]) (p : [128]) ->
+  ((1 < p) && (p < 2^^127) && (a < 2^^127)) ==>
+  (a %$ p) == repr128 (value128 a % value128 p) }});
+print "Verified positive i128 remainder";
+truncate_conversion <- timeout 30000 (prove_print cvc5 {{ \(x : Integer) ->
+  drop`{64} (repr128 x) == repr64 x }});
+print "Verified truncation conversion";
+positive_extension <- timeout 30000 (prove_print cvc5 {{ \(p : [64]) ->
+  (p < 2^^63) ==> value128 (sext p : [128]) == value p }});
+print "Verified positive sign extension";
+
+wide_remainder <- timeout 30000 (prove_print (do {
+  a <- goal_intro "a";
+  p <- goal_intro "p";
+  goal_insert_and_specialize wide_positive_remainder [a, {{ sext p : [128] }}];
+  goal_insert_and_specialize truncate_conversion [{{ value128 a % value128 (sext p : [128]) }}];
+  goal_insert_and_specialize positive_extension [p];
+  unfolding ["residue"];
+  unint_z3 ["value", "value128", "repr64", "repr128"];
+}) {{ \(a : [128]) (p : [64]) ->
+  (validModulus p && (a < 2^^127)) ==>
+  drop`{64} (a %$ (sext p : [128])) == residue p (value128 a) }});
+print "Verified composed wide remainder";
+
+// MIR checks i128 multiplication overflow by comparing with a 256-bit product.
+wider_product_value <- timeout 30000 (prove_print cvc5 {{ \(a : [64]) (b : [64]) ->
+  ((a < 2^^63) && (b < 2^^63)) ==> value256 (widerProduct a b) == value a * value b }});
+print "Verified 256-bit product value";
+extend_product_value <- timeout 30000 (prove_print cvc5 {{ \(x : [128]) ->
+  (x < 2^^127) ==> value256 (extendProduct x) == value128 x }});
+value256_injective <- timeout 30000 (prove_print cvc5 {{ \(x : [256]) (y : [256]) ->
+  (value256 x == value256 y) == (x == y) }});
+print "Verified product extension and injectivity";
+wide_exact <- timeout 30000 (prove_print (do {
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  goal_insert_and_specialize wider_product_value [a,b];
+  goal_insert_and_specialize wide_product_value [a,b];
+  goal_insert_and_specialize wide_product_bound [a,b];
+  goal_insert_and_specialize extend_product_value [{{ wideProduct a b }}];
+  goal_insert_and_specialize value256_injective [{{ widerProduct a b }}, {{ extendProduct (wideProduct a b) }}];
+  unint_z3 ["value","value128","value256","wideProduct","widerProduct","extendProduct"];
+}) {{ \(a : [64]) (b : [64]) ->
+  ((a < 2^^63) && (b < 2^^63)) ==> widerProduct a b == extendProduct (wideProduct a b) }});
+print "Verified abstract overflow identity";
+overflow_a <- fresh_symbolic "overflow_a" {| [64] |};
+overflow_b <- fresh_symbolic "overflow_b" {| [64] |};
+wide_no_overflow <- timeout 30000 (prove_print (do {
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  goal_insert_and_specialize wide_exact [a,b];
+  w4_unint_z3 [];
+}) (abstract_symbolic (term_eval {{
+  widerProduct overflow_a overflow_b ==
+  if (overflow_a < 2^^63) && (overflow_b < 2^^63)
+  then extendProduct (wideProduct overflow_a overflow_b)
+  else widerProduct overflow_a overflow_b
+}})));
+print "Verified native i128 multiplication overflow rule";
+
+// Normalize MIR's primitive casts to the form produced by Cryptol's sext.
+// These are expressions to prove equivalent, not assumed conversion axioms.
+let native_sext64_128 = parse_core "\\(x : Vec 64 Bool) -> Prelude::bvSExt 64 63 x";
+let native_sext64_256 = parse_core "\\(x : Vec 64 Bool) -> Prelude::bvSExt 192 63 x";
+let native_sext128_256 = parse_core "\\(x : Vec 128 Bool) -> Prelude::bvSExt 128 127 x";
+cast64 <- fresh_symbolic "cast64" {| [64] |};
+cast128 <- fresh_symbolic "cast128" {| [128] |};
+let expanded64_128 = term_eval {{ sext cast64 : [128] }};
+let expanded64_256 = term_eval {{ sext cast64 : [256] }};
+let expanded128_256 = term_eval {{ sext cast128 : [256] }};
+cast64_128 <- prove_print z3 (abstract_symbolic (rewrite (cryptol_ss ()) {{ native_sext64_128 cast64 == expanded64_128 }}));
+cast64_256 <- prove_print z3 (abstract_symbolic (rewrite (cryptol_ss ()) {{ native_sext64_256 cast64 == expanded64_256 }}));
+cast128_256 <- prove_print z3 (abstract_symbolic (rewrite (cryptol_ss ()) {{ native_sext128_256 cast128 == expanded128_256 }}));
+let cast_ss = addsimps [cast64_128,cast64_256,cast128_256] (cryptol_ss ());
+print "Verified MIR sign-extension rewrites";
+
+a_word <- fresh_symbolic "a" {| [64] |};
+b_word <- fresh_symbolic "b" {| [64] |};
+p_word <- fresh_symbolic "p" {| [64] |};
+small_rule <- timeout 30000 (prove_print (do {
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  p <- goal_intro "p";
+  goal_insert_and_specialize small_product_value [a,b];
+  goal_insert_and_specialize small_product_bound [a,b];
+  goal_insert_and_specialize small_remainder [{{ a*b }},p];
+  unint_z3 ["value","residue"];
+}) (abstract_symbolic (term_eval_unint ["value","residue"] {{
+  (a_word*b_word %$ p_word) ==
+    if validModulus p_word && (a_word < 3037000500) && (b_word < 3037000500)
+    then residue p_word (value a_word * value b_word)
+    else a_word*b_word %$ p_word }})));
+print "Verified native narrow multiplication rewrite";
+wide_rule <- timeout 30000 (prove_print (do {
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  p <- goal_intro "p";
+  goal_insert_and_specialize wide_product_value [a,b];
+  goal_insert_and_specialize wide_product_bound [a,b];
+  goal_insert_and_specialize wide_remainder [{{ wideProduct a b }},p];
+  unint_z3 ["value","value128","residue"];
+}) (abstract_symbolic (term_eval_unint ["value","value128","residue"] {{
+  drop`{64} (wideProduct a_word b_word %$ (sext p_word : [128])) ==
+    if validModulus p_word && (a_word < 2^^63) && (b_word < 2^^63)
+    then residue p_word (value a_word * value b_word)
+    else drop`{64} (wideProduct a_word b_word %$ (sext p_word : [128])) }})));
+print "Verified native wide multiplication rewrite";
+let generic_mul_proof = do {
+  simplify cast_ss;
+  simplify (addsimp_shallow wide_no_overflow (cryptol_ss ()));
+  simplify (addsimp_shallow wide_rule (addsimp_shallow small_rule (cryptol_ss ())));
+  cvc5;
+};

@@ -1,0 +1,41 @@
+// Normalization accepts every i64. Binary arithmetic takes canonical residues.
+let normalize_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  mir_execute_func [mir_term a, mir_term {{ modulus : [64] }}];
+  mir_return (mir_term {{ normalize a }});
+  mir_postcond {{ normalize a < modulus }};
+};
+
+let add_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  b <- mir_fresh_var "b" mir_i64;
+  mir_precond {{ (a < modulus) && (b < modulus) }};
+  mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
+  mir_return (mir_term {{ repr (value a + value b) }});
+  mir_postcond {{ repr (value a + value b) < modulus }};
+};
+
+let sub_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  b <- mir_fresh_var "b" mir_i64;
+  mir_precond {{ (a < modulus) && (b < modulus) }};
+  mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
+  mir_return (mir_term {{ repr (value a - value b) }});
+  mir_postcond {{ repr (value a - value b) < modulus }};
+};
+
+let mul_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  b <- mir_fresh_var "b" mir_i64;
+  mir_precond {{ (a < modulus) && (b < modulus) }};
+  mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
+  mir_return (mir_term {{ repr (value a * value b) }});
+  mir_postcond {{ repr (value a * value b) < modulus }};
+};
+
+normalize_verified <- timeout 600000 (mir_verify m "ntt::mod_normalize" [] false normalize_spec cvc5);
+add_verified <- timeout 600000 (mir_verify m "ntt::mod_add" [] false add_spec cvc5);
+sub_verified <- timeout 600000 (mir_verify m "ntt::mod_sub" [] false sub_spec cvc5);
+include "mul-proof.saw";
+mul_verified <- timeout 600000 (mir_verify m "ntt::mod_mul" [] false mul_spec mul_proof);
+print (str_concat "Verified arithmetic and signed normalization modulo " (show q));

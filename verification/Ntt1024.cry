@@ -1,0 +1,6 @@
+module Ntt1024 = NttSpec where
+  type logN = 10
+  type q = 12289
+  root = 10302
+  inverseRoot = 8974
+  inverseLength = 12277

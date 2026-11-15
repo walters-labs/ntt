@@ -1,0 +1,28 @@
+// A generic butterfly proof replaces three scalar calls at each stage pair.
+let butterfly_spec inverse_direction = do {
+  u <- mir_fresh_var "u" mir_i64;
+  v <- mir_fresh_var "v" mir_i64;
+  w <- mir_fresh_var "w" mir_i64;
+  mir_precond {{ (u < modulus) && (v < modulus) && (w < modulus) }};
+  let left = if inverse_direction then {{ repr (value u + value v * value w) }} else {{ repr (value u + value v) }};
+  let right = if inverse_direction then {{ repr (value u - value v * value w) }} else {{ repr ((value u - value v) * value w) }};
+  mir_execute_func [mir_term u, mir_term v, mir_term w, mir_term {{ modulus }}];
+  mir_return (mir_tuple_value [mir_term left, mir_term right]);
+  mir_postcond {{ (left < modulus) && (right < modulus) }};
+};
+let butterfly_proof = do {
+  unfolding ["modulus", "modulusInteger"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr"];
+  simplify polynomial_ss;
+  goal_eval_unint ["value", "repr"];
+  unint_z3 ["value"];
+};
+forward_butterfly <- timeout 600000 (mir_verify m "ntt::prepared::forward_butterfly"
+  arithmetic_overrides false (butterfly_spec false) butterfly_proof);
+inverse_butterfly <- timeout 600000 (mir_verify m "ntt::prepared::inverse_butterfly"
+  arithmetic_overrides false (butterfly_spec true) butterfly_proof);
+let butterfly_overrides = [forward_butterfly, inverse_butterfly];
+print "Verified butterflies for arbitrary canonical inputs and twiddles";

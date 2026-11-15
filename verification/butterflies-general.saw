@@ -1,0 +1,26 @@
+// Included after arithmetic-general.saw's four all-modulus scalar proofs.
+// The twiddle is any canonical residue: no root-order or primality assumption.
+let general_butterfly_spec inverse_direction = do {
+  u <- mir_fresh_var "u" mir_i64;
+  v <- mir_fresh_var "v" mir_i64;
+  w <- mir_fresh_var "w" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p && (u < p) && (v < p) && (w < p) }};
+  let result = if inverse_direction then {{ inverseButterfly p u v w }}
+                                   else {{ forwardButterfly p u v w }};
+  mir_execute_func [mir_term u, mir_term v, mir_term w, mir_term p];
+  mir_return (mir_tuple_value [mir_term {{ result.0 }}, mir_term {{ result.1 }}]);
+  mir_postcond {{ (result.0 < p) && (result.1 < p) }};
+};
+let general_butterfly_proof = do {
+  unfolding ["forwardButterfly", "inverseButterfly", "validModulus"];
+  // The proved scalar contracts supply the exact modular operations and the
+  // output bounds needed by subsequent calls. Preserve those boundaries.
+  w4_unint_z3 ["add", "sub", "mul"];
+};
+let general_arithmetic_overrides = [normalize_verified, add_verified, sub_verified, mul_verified];
+forward_butterfly_verified <- timeout 120000 (mir_verify m "ntt::prepared::forward_butterfly"
+  general_arithmetic_overrides false (general_butterfly_spec false) general_butterfly_proof);
+inverse_butterfly_verified <- timeout 120000 (mir_verify m "ntt::prepared::inverse_butterfly"
+  general_arithmetic_overrides false (general_butterfly_spec true) general_butterfly_proof);
+print "Verified both butterflies for every modulus 2 <= p <= i64::MAX and all canonical inputs and twiddles";

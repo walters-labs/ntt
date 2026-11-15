@@ -1,0 +1,40 @@
+// Reduce a vector equality to equalities of both halves. This rule is proved
+// for arbitrary vectors; recursive splitting covers every output coefficient.
+// Keeping the algebraic goals small limits the cost of polynomial normalization.
+let make_split_rule degree = do {
+  let h = eval_int {{ `degree / 2 : [64] }};
+  let eq = math_formula {{ \(a : [degree]Coeff) (b : [degree]Coeff) -> a == b }};
+  let lo = math_formula {{ \(a : [degree]Coeff) (b : [degree]Coeff) ->
+    take`{front=h} a == take`{front=h} b }};
+  let hi = math_formula {{ \(a : [degree]Coeff) (b : [degree]Coeff) ->
+    drop`{front=h} a == drop`{front=h} b }};
+  let ty = str_concat "Vec " (str_concat (show degree) " (Vec 64 Bool)");
+  let pred_ty = str_concat ty (str_concat " -> " (str_concat ty " -> Bool"));
+  let template = parse_core (str_concat "\\(eq : "
+    (str_concat pred_ty (str_concat ") (lo : "
+    (str_concat pred_ty (str_concat ") (hi : "
+    (str_concat pred_ty (str_concat ") -> (a : "
+    (str_concat ty (str_concat ") -> (b : "
+    (str_concat ty ") -> EqTrue (lo a b) -> EqTrue (hi a b) -> EqTrue (eq a b)"))))))))));
+  timeout 600000 (prove_print (w4_unint_z3 [])
+    (beta_reduce_term (term_apply template [eq, lo, hi])));
+};
+
+rec introduce_math_inputs count =
+  if eval_bool {{ `count == (0 : [64]) }} then return ()
+  else do {
+    input <- goal_intro "input";
+    introduce_math_inputs (eval_int {{ `count - 1 : [64] }});
+  };
+rec make_vector_proof chunk_size degree =
+  if eval_bool {{ `degree <= (`chunk_size : [64]) }} then return math_proof
+  else do {
+    rule <- make_split_rule degree;
+    let h = eval_int {{ `degree / 2 : [64] }};
+    sub <- make_vector_proof chunk_size h;
+    return (do { normalize_sequent; focus_concl 0; goal_apply rule; sub; sub; });
+  };
+let prove_vector chunk_size degree arity statement = do {
+  proof <- make_vector_proof chunk_size degree;
+  timeout 600000 (prove_print (do { introduce_math_inputs arity; proof; }) statement);
+};

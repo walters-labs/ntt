@@ -1,0 +1,44 @@
+// Independent integer specifications for the full supported modulus range.
+module ScalarSpec where
+
+type Word = [64]
+validModulus : Word -> Bit
+validModulus p = (1 < p) && (p < 0x8000000000000000)
+value : Word -> Integer
+value a = toInteger a
+signedValue : Word -> Integer
+signedValue a = if a < 0x8000000000000000 then value a else value a - 2^^64
+residue : Word -> Integer -> Word
+residue p a = repr64 (a % value p)
+normalize : Word -> Word -> Word
+normalize p a = residue p (signedValue a)
+add : Word -> Word -> Word -> Word
+add p a b = residue p (value a + value b)
+sub : Word -> Word -> Word -> Word
+sub p a b = residue p (value a - value b)
+mul : Word -> Word -> Word -> Word
+mul p a b = residue p (value a * value b)
+
+// Butterfly formulas in the modular ring. Each operation above is specified
+// independently using exact integers, including canonical reduction.
+forwardButterfly : Word -> Word -> Word -> Word -> (Word, Word)
+forwardButterfly p u v w = (add p u v, mul p (sub p u v) w)
+inverseButterfly : Word -> Word -> Word -> Word -> (Word, Word)
+inverseButterfly p u v w = (add p u t, sub p u t)
+  where t = mul p v w
+
+value128 : [128] -> Integer
+value128 x = toInteger x
+wideProduct : Word -> Word -> [128]
+wideProduct a b = (sext a : [128]) * (sext b : [128])
+
+repr64 : Integer -> Word
+repr64 x = fromInteger x
+repr128 : Integer -> [128]
+repr128 x = fromInteger x
+value256 : [256] -> Integer
+value256 x = toInteger x
+widerProduct : Word -> Word -> [256]
+widerProduct a b = (sext a : [256]) * (sext b : [256])
+extendProduct : [128] -> [256]
+extendProduct x = sext x

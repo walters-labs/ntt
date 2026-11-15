@@ -1,0 +1,15 @@
+// The pinned ML-KEM constructors use base 17, modulus 3329, and all exponents
+// 0..127 in bit-reversed order. Verify the production function for that complete
+// finite domain against the direct integer-power specification. This does not
+// verify ML-KEM's own bit-reversal, transform, or table construction code.
+m <- mir_load_module (get_opt 1);
+let exponents = eval_list {{ [0 .. 127] : [128][64] }};
+for exponents (\exponent -> do {
+  let power_spec = do {
+    mir_execute_func [mir_term {{ 17 : [64] }}, mir_term exponent, mir_term {{ 3329 : [64] }}];
+    mir_return (mir_term {{ fromInteger (17 ^^ toInteger exponent % 3329) : [64] }});
+  };
+  _ <- timeout 30000 (mir_verify m "ntt::mod_exp" [] false power_spec z3);
+  return ();
+});
+print "Verified all 128 modular powers used by ML-KEM twiddle generation";

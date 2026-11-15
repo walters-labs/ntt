@@ -1,0 +1,6 @@
+module Ntt256 = NttSpec where
+  type logN = 8
+  type q = 12289
+  root = 8340
+  inverseRoot = 1696
+  inverseLength = 12241
