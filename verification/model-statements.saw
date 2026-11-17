@@ -1,0 +1,8 @@
+// The mathematical and operational functions are defined by the same imported
+// NttSpec instance used by Rust's contracts. These are universally quantified.
+include "math-components.saw";
+let model_names = ["forward", "inverse"];
+let model_statements = [
+  formula {{ \(a : Poly) -> forward a == stagedForward a }},
+  formula {{ \(a : Poly) -> inverse a == stagedInverse a }}];
+model_props <- for [0, 1] (\i -> native_proposition 1 n (nth model_statements i));

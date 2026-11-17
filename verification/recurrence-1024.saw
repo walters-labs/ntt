@@ -1,0 +1,15 @@
+// Check only the even/odd recurrence of schoolbook cyclic convolution.
+// This loads no Rust MIR and does not prove the public multiplication API.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+print "Checking the isolated 1024-point recurrence with 64-output chunks";
+recurrence_verified <- prove_vector 64 n 2 (math_formula
+  {{ \(a : Poly) (b : Poly) ->
+    interleave (addN (convN (evens a) (evens b))
+                    (rotate (convN (odds a) (odds b))))
+               (addN (convN (evens a) (odds b))
+                     (convN (odds a) (evens b))) == convN a b }});
+print "Verified 1024-point schoolbook convolution recurrence";

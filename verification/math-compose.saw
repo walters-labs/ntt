@@ -1,0 +1,31 @@
+// A closed implication, not an assumed convolution theorem. Each premise must
+// also have its own successful proof and matching serialized proposition.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "math-tactics.saw";
+include "math-components.saw";
+let math_output = get_env "NTT_MATH_OUTPUT";
+saved_half <- read_core (str_concat math_output "/half.core");
+check_convertible half_convolution_prop saved_half;
+for [0, 1, 2, 3, 4, 5, 6] (\i -> do {
+  saved <- read_core (str_concats [math_output, "/", nth component_names i, ".core"]);
+  check_convertible (nth component_props i) saved;
+});
+let implication_template = parse_core
+  "\\(h : Prop) (f : Prop) (i : Prop) (a : Prop) (s : Prop) (c : Prop) (p : Prop) (d : Prop) (z : Prop) -> h -> f -> i -> a -> s -> c -> p -> d -> z";
+let composition_statement = beta_reduce_term (term_apply implication_template
+  (concat [half_convolution_prop] (concat component_props [full_convolution_prop])));
+degree_reflexive <- prove_print (do { goal_eval; trivial; })
+  (math_formula {{ \(a : Poly) -> (a == a) == True }});
+composition_verified <- prove_print (do {
+  goal_intro_hyps 8;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify_local [0, 1, 2, 3, 4, 5, 6, 7]
+    (addsimp degree_reflexive (cryptol_ss ()));
+  trivial;
+}) composition_statement;
+write_core (str_concat math_output "/composition.core") composition_statement;
+write_core (str_concat math_output "/convolution.core") full_convolution_prop;
+print "Verified conditional convolution composition with all eight matched premises";

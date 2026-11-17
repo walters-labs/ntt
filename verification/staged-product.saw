@@ -1,0 +1,3 @@
+// Shared operational multiplication specification; this is a definition.
+let staged_product = {{ \(a : Poly) (b : Poly) ->
+  stagedInverse (normalizePoly (pointwise (stagedForward a) (stagedForward b))) }};

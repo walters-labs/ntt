@@ -1,0 +1,21 @@
+// NTT_MATH_COMPONENT selects a fixed member of the shared predicate table.
+// The controller supplies a decimal index and an absolute output directory.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "math-tactics.saw";
+include "math-components.saw";
+let component_index = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MATH_COMPONENT")));
+let component_name = nth component_names component_index;
+print (str_concat "Proving mathematical component: " component_name);
+let component_arity = nth component_arities component_index;
+component_proof <- make_vector_proof 64 (nth component_degrees component_index);
+let component_timeout = if eval_bool {{ `math_n >= (2048 : [64]) }} then 3600000 else 600000;
+component_verified <- timeout component_timeout (prove_print (do {
+  introduce_math_inputs component_arity;
+  component_proof;
+}) (nth component_statements component_index));
+export_verified <- prove_print (goal_apply component_verified) (nth component_props component_index);
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", component_name, ".core"])
+  (nth component_props component_index);
+print (str_concat "Verified exported mathematical component: " component_name);

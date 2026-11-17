@@ -1,0 +1,3 @@
+import "Ntt8.cry";
+let mir_path = get_opt 1;
+include "verify-spectral.saw";

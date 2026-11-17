@@ -1,0 +1,27 @@
+// Structural return matching for the spectral contract; no convolution lemma.
+// Expand pointwise multiplication on generic vectors once. Prove the expansion
+// before using it to match the Rust loop's explicit array of scalar results.
+pointwise_a <- fresh_symbolic "pointwise_a" {| Poly |};
+pointwise_b <- fresh_symbolic "pointwise_b" {| Poly |};
+let pointwise_result = term_eval_unint ["value", "repr"] {{ pointwise pointwise_a pointwise_b }};
+let pointwise_body = lambdas [pointwise_a, pointwise_b] pointwise_result;
+pointwise_expanded <- prove_print (do {
+  unfolding ["pointwise"];
+  goal_eval_unint ["value", "repr"];
+  unint_z3 ["value", "repr"];
+}) (math_formula {{ \(a : Poly) (b : Poly) -> pointwise a b == pointwise_body a b }});
+// MIR's return matcher uses native vecEq. Prove its reflexivity in that form.
+let native_poly_refl_term = parse_core (str_concat "(a : Vec "
+  (str_concat (show n) (str_concat " (Vec 64 Bool)) -> Eq Bool (vecEq "
+  (str_concat (show n) " (Vec 64 Bool) (bvEq 64) a a) True"))));
+native_poly_refl <- prove_print (w4_unint_z3 []) native_poly_refl_term;
+let pointwise_result_ss = addsimps [pointwise_expanded, native_poly_refl] (cryptol_ss ());
+let pointwise_result_proof = do {
+  normalize_sequent;
+  // The equality follows from the formulas alone, without range hypotheses.
+  retain_hyps [];
+  focus_concl 0;
+  simplify pointwise_result_ss;
+  trivial;
+};
+print "Verified structural pointwise-result identities";

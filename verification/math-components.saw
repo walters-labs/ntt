@@ -1,0 +1,80 @@
+// Exact predicates shared by the independent mathematical proofs and their
+// conditional composition. Import a concrete NttSpec and math-tactics first.
+let math_n = eval_int {{ fromInteger size : [64] }};
+let math_half = eval_int {{ fromInteger (size / 2) : [64] }};
+let root_n = eval_int {{ parameters.root }};
+let inverse_root_n = eval_int {{ parameters.inverseRoot }};
+let inverse_degree_n = eval_int {{ parameters.inverseLength }};
+let root_h = eval_int {{ repr (`root_n * `root_n) }};
+let inverse_root_h = eval_int {{ repr (`inverse_root_n * `inverse_root_n) }};
+let inverse_degree_h = eval_int {{ repr (`inverse_degree_n * 2) }};
+
+let forward_split_statement = math_formula {{ \(a : Poly) ->
+  dftN `root_n a == combine `root_n
+    (dftN `root_h (evens a)) (dftN `root_h (odds a)) }};
+let inverse_split_statement = math_formula {{ \(a : Poly) ->
+  idftN `inverse_root_n `inverse_degree_n a == interleave
+    (idftN `inverse_root_h `inverse_degree_h (halfSums a))
+    (idftN `inverse_root_h `inverse_degree_h (halfDiffs `inverse_root_n a)) }};
+let inverse_add_statement = math_formula
+  {{ \(a : [math_half]Coeff) (b : [math_half]Coeff) ->
+    idftN `inverse_root_h `inverse_degree_h (addN a b) ==
+    addN (idftN `inverse_root_h `inverse_degree_h a)
+         (idftN `inverse_root_h `inverse_degree_h b) }};
+let inverse_shift_statement = math_formula {{ \(a : [math_half]Coeff) ->
+  idftN `inverse_root_h `inverse_degree_h (phase `root_h a) ==
+    rotate (idftN `inverse_root_h `inverse_degree_h a) }};
+let recurrence_statement = math_formula {{ \(a : Poly) (b : Poly) ->
+  interleave (addN (convN (evens a) (evens b))
+                  (rotate (convN (odds a) (odds b))))
+             (addN (convN (evens a) (odds b))
+                   (convN (odds a) (evens b))) == convN a b }};
+let spectral_sums_statement = math_formula
+  {{ \(a : [math_half]Coeff) (b : [math_half]Coeff)
+      (c : [math_half]Coeff) (d : [math_half]Coeff) ->
+    halfSums (pointwise (combine `root_n a b) (combine `root_n c d)) ==
+      addN (pointwise a c) (phase `root_h (pointwise b d)) }};
+let spectral_diffs_statement = math_formula
+  {{ \(a : [math_half]Coeff) (b : [math_half]Coeff)
+      (c : [math_half]Coeff) (d : [math_half]Coeff) ->
+    halfDiffs `inverse_root_n
+      (pointwise (combine `root_n a b) (combine `root_n c d)) ==
+      addN (pointwise a d) (pointwise b c) }};
+let half_convolution_statement = math_formula
+  {{ \(a : [math_half]Coeff) (b : [math_half]Coeff) ->
+    idftN `inverse_root_h `inverse_degree_h
+      (pointwise (dftN `root_h a) (dftN `root_h b)) == convN a b }};
+let full_convolution_statement = math_formula {{ \(a : Poly) (b : Poly) ->
+  idftN `inverse_root_n `inverse_degree_n
+    (pointwise (dftN `root_n a) (dftN `root_n b)) == convN a b }};
+
+let component_names = ["forward", "inverse", "linearity", "shift", "recurrence", "sums", "diffs"];
+let component_degrees = [math_n, math_n, math_half, math_half, math_n, math_half, math_half];
+let component_input_degrees = [math_n, math_n, math_half, math_half, math_n, math_half, math_half];
+let component_arities = [1, 1, 2, 1, 2, 4, 4];
+let component_statements = [forward_split_statement, inverse_split_statement,
+  inverse_add_statement, inverse_shift_statement, recurrence_statement,
+  spectral_sums_statement, spectral_diffs_statement];
+
+// Express a Cryptol predicate as an explicit native proposition, so serialized
+// premises can be compared by SAW's definitional equality across processes.
+let native_proposition arity input_degree predicate = do {
+  let ty = str_concat "Vec " (str_concat (show input_degree) " (Vec 64 Bool)");
+  let arrow rest = str_concat ty (str_concat " -> " rest);
+  let one = eval_bool {{ `arity == (1 : [64]) }};
+  let two = eval_bool {{ `arity == (2 : [64]) }};
+  let predicate_type = if one then arrow "Bool"
+    else if two then arrow (arrow "Bool")
+    else arrow (arrow (arrow (arrow "Bool")));
+  let binder name = str_concat "(" (str_concat name (str_concat " : " (str_concat ty ") -> ")));
+  let arguments = if one then "a" else if two then "a b" else "a b c d";
+  let binders = if one then binder "a" else if two then str_concat (binder "a") (binder "b")
+    else str_concats [binder "a", binder "b", binder "c", binder "d"];
+  let template = parse_core (str_concats ["\\(f : ", predicate_type, ") -> ",
+    binders, "EqTrue (f ", arguments, ")"]);
+  return (beta_reduce_term (term_apply template [predicate]));
+};
+component_props <- for [0, 1, 2, 3, 4, 5, 6] (\i -> native_proposition
+  (nth component_arities i) (nth component_input_degrees i) (nth component_statements i));
+half_convolution_prop <- native_proposition 2 math_half half_convolution_statement;
+full_convolution_prop <- native_proposition 2 math_n full_convolution_statement;

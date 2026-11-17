@@ -1,0 +1,13 @@
+// Pure algebraic tactic shared with standalone transform-model proofs.
+let stage_algebra = do {
+  unfolding ["forwardStage", "inverseStage", "forwardTwiddles", "inverseTwiddles",
+             "constants", "indices", "canonical", "modulus", "modulusInteger", "size"];
+  simplify arithmetic_ss;
+  simplify basic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify polynomial_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  unint_z3 ["value", "normalize"];
+};

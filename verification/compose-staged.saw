@@ -1,0 +1,32 @@
+// Prove the public operations against the operational stage model.
+// Independent model and convolution proofs connect these results to direct formulas.
+let public_overrides = concat arithmetic_overrides [forward_kernel, inverse_kernel];
+let public_proof =
+  w4_unint_z3 ["stagedForward", "stagedInverse", "normalizePoly", "value", "repr", "normalize"];
+include "pointwise-result-spectral.saw";
+include "pointwise-bounds.saw";
+let forward_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  mir_execute_func [mir_term a];
+  mir_return (mir_term {{ stagedForward (normalizePoly a) }});
+};
+forward_verified <- timeout transform_timeout (mir_verify m (entry "forward_")
+  public_overrides false forward_spec public_proof);
+print (str_concat "Verified staged forward NTT for all i64 inputs: " suffix);
+let inverse_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  mir_execute_func [mir_term a];
+  mir_return (mir_term {{ stagedInverse (normalizePoly a) }});
+};
+inverse_verified <- timeout transform_timeout (mir_verify m (entry "inverse_")
+  public_overrides false inverse_spec public_proof);
+print (str_concat "Verified staged inverse NTT for all i64 inputs: " suffix);
+let multiply_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  b <- mir_fresh_var "b" (mir_array n mir_i64);
+  mir_execute_func [mir_term a, mir_term b];
+  mir_return (mir_term {{ staged_product (normalizePoly a) (normalizePoly b) }});
+};
+multiply_verified <- timeout transform_timeout (mir_verify m (entry "multiply_")
+  public_overrides false multiply_spec multiply_proof);
+print (str_concat "Verified Rust multiplication against staged product for all i64 inputs: " suffix);

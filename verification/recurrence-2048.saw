@@ -1,0 +1,14 @@
+// Measure the largest schoolbook recurrence independently of other proofs.
+import "Ntt2048.cry";
+let n = 2048;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+print "Checking the isolated 2048-point recurrence with 64-output chunks";
+recurrence_verified <- prove_vector 64 n 2 (math_formula
+  {{ \(a : Poly) (b : Poly) ->
+    interleave (addN (convN (evens a) (evens b))
+                    (rotate (convN (odds a) (odds b))))
+               (addN (convN (evens a) (odds b))
+                     (convN (odds a) (evens b))) == convN a b }});
+print "Verified 2048-point schoolbook convolution recurrence";

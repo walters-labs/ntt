@@ -1,0 +1,25 @@
+// Prove every input array, but only a specified block of output coefficients.
+// A separate coverage proof is required before these blocks imply a full model.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "stage-algebra.saw";
+let math_formula = formula;
+include "model-statements.saw";
+let model_index = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MATH_COMPONENT")));
+let slice_offset = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MODEL_SLICE_OFFSET")));
+let slice_count = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MODEL_SLICE_COUNT")));
+let model_name = nth model_names model_index;
+include "model-slice-defs.saw";
+slice_statement <- make_model_slice slice_offset slice_count;
+let model_proof = do {
+  unfolding ["forward", "inverse", "dft", "permute", "bitReverse",
+             "stagedForward", "stagedInverse", "stageSteps"];
+  stage_algebra;
+};
+slice_verified <- timeout 600000 (prove_print model_proof slice_statement);
+slice_prop <- native_proposition 1 n slice_statement;
+slice_exported <- prove_print (goal_apply slice_verified) slice_prop;
+let slice_label = str_concats [model_name, "-", show slice_offset, "-", show slice_count];
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", slice_label, ".core"]) slice_prop;
+print (str_concat "Verified standalone model slice: " slice_label);

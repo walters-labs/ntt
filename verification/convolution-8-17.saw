@@ -1,0 +1,8 @@
+// Small regression for the mathematical half of the split proof.
+import "Ntt8.cry";
+let n = 8;
+let q = 17;
+include "lemmas.saw";
+include "convolution.saw";
+include "bridge.saw";
+print "Verified complete 8-point convolution theorem and multiplication specification bridge";

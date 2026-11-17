@@ -1,4 +1,5 @@
 // A generic butterfly proof replaces three scalar calls at each stage pair.
+// The exact repr-valued returns imply bounds; stages prove those from repr_range.
 let butterfly_spec inverse_direction = do {
   u <- mir_fresh_var "u" mir_i64;
   v <- mir_fresh_var "v" mir_i64;
@@ -8,7 +9,6 @@ let butterfly_spec inverse_direction = do {
   let right = if inverse_direction then {{ repr (value u - value v * value w) }} else {{ repr ((value u - value v) * value w) }};
   mir_execute_func [mir_term u, mir_term v, mir_term w, mir_term {{ modulus }}];
   mir_return (mir_tuple_value [mir_term left, mir_term right]);
-  mir_postcond {{ (left < modulus) && (right < modulus) }};
 };
 let butterfly_proof = do {
   unfolding ["modulus", "modulusInteger"];

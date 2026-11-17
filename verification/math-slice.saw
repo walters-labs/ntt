@@ -1,0 +1,18 @@
+// A closed, universally quantified component proof for one output block.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "math-tactics.saw";
+include "math-components.saw";
+let model_index = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MATH_COMPONENT")));
+let model_name = nth component_names model_index;
+let slice_offset = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MODEL_SLICE_OFFSET")));
+let slice_count = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MODEL_SLICE_COUNT")));
+include "math-slice-defs.saw";
+slice_statement <- make_model_slice slice_offset slice_count;
+slice_verified <- timeout 600000 (prove_print math_proof slice_statement);
+slice_prop <- native_proposition (nth component_arities model_index) n slice_statement;
+slice_exported <- prove_print (goal_apply slice_verified) slice_prop;
+let slice_label = str_concats [model_name, "-", show slice_offset, "-", show slice_count];
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", slice_label, ".core"]) slice_prop;
+print (str_concat "Verified standalone mathematical slice: " slice_label);

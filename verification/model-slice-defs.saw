@@ -1,0 +1,11 @@
+// Output partitions of the same full model predicates used by every layer.
+let selected_model_left = nth [{{ forward }}, {{ inverse }}] model_index;
+let selected_model_right = nth [{{ stagedForward }}, {{ stagedInverse }}] model_index;
+check_convertible (formula {{ \(a : Poly) -> selected_model_left a == selected_model_right a }})
+  (nth model_statements model_index);
+let make_model_slice offset count = return (formula {{ \(a : Poly) ->
+  take`{front=count} (drop`{front=offset} (selected_model_left a)) ==
+  take`{front=count} (drop`{front=offset} (selected_model_right a)) }});
+let make_vector_slice offset count = return (formula {{ \(x : Poly) (y : Poly) ->
+  take`{front=count} (drop`{front=offset} x) ==
+  take`{front=count} (drop`{front=offset} y) }});

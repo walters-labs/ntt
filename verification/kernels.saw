@@ -26,8 +26,8 @@ let kernel_proof = do {
   unint_z3 ["value", "repr", "normalize"];
 };
 include "kernel-bounds.saw";
-forward_kernel <- timeout 600000 (mir_verify m "ntt::prepared::forward_transform"
+forward_kernel <- timeout transform_timeout (mir_verify m "ntt::prepared::forward_transform"
   (concat arithmetic_overrides forward_stages) false (kernel_spec false) kernel_proof);
-inverse_kernel <- timeout 600000 (mir_verify m "ntt::prepared::inverse_transform"
+inverse_kernel <- timeout transform_timeout (mir_verify m "ntt::prepared::inverse_transform"
   (concat arithmetic_overrides inverse_stages) false (kernel_spec true) inverse_kernel_proof);
 print "Verified full slice kernels for every i64 input";

@@ -1,0 +1,17 @@
+// Shared tactics for the full theorem and isolated mathematical checks.
+let math_proof = do {
+  unfolding ["dftN", "idftN", "convN", "addN", "pointwise", "phase", "rotate",
+             "evens", "odds", "interleave", "combine", "halfSums", "halfDiffs", "range",
+             "modulus", "modulusInteger", "inverseTwo"];
+  simplify arithmetic_ss;
+  simplify basic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify arithmetic_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  simplify polynomial_ss;
+  goal_eval_unint ["value", "repr", "normalize"];
+  unint_z3 ["value", "normalize"];
+};
+let math_ss = cryptol_ss ();
+let math_formula t = rewrite math_ss t;
+include "vector-proofs.saw";

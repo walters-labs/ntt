@@ -1,0 +1,20 @@
+// One pure transform-model theorem per process, without any Rust MIR history.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "stage-algebra.saw";
+let math_formula = formula;
+include "model-statements.saw";
+let model_index = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MATH_COMPONENT")));
+let model_name = nth model_names model_index;
+let model_proof = do {
+  unfolding ["forward", "inverse", "dft", "permute", "bitReverse",
+             "stagedForward", "stagedInverse", "stageSteps"];
+  stage_algebra;
+};
+print (str_concat "Proving standalone transform model: " model_name);
+model_verified <- timeout 3600000 (prove_print model_proof (nth model_statements model_index));
+model_exported <- prove_print (goal_apply model_verified) (nth model_props model_index);
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", model_name, ".core"])
+  (nth model_props model_index);
+print (str_concat "Verified standalone transform model: " model_name);

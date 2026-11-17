@@ -1,0 +1,10 @@
+// Prove the half-size theorem, including all its own dependencies, in one
+// fresh process. Export exactly the proposition needed by top-level composition.
+let n = eval_int {{ fromInteger (size / 2) : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "convolution.saw";
+include "math-components.saw";
+half_exported <- prove_print (goal_apply convolution_theorem) half_convolution_prop;
+write_core (str_concat (get_env "NTT_MATH_OUTPUT") "/half.core") half_convolution_prop;
+print "Verified exported half-size convolution theorem";

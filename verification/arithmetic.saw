@@ -1,9 +1,11 @@
 // Normalization accepts every i64. Binary arithmetic takes canonical residues.
+// Exact return formulas imply their bounds through normalize_range/repr_range.
+// Avoid repeating those facts as postconditions: callers would accumulate one
+// redundant hypothesis per scalar call in long unrolled loops.
 let normalize_spec = do {
   a <- mir_fresh_var "a" mir_i64;
   mir_execute_func [mir_term a, mir_term {{ modulus : [64] }}];
   mir_return (mir_term {{ normalize a }});
-  mir_postcond {{ normalize a < modulus }};
 };
 
 let add_spec = do {
@@ -12,7 +14,6 @@ let add_spec = do {
   mir_precond {{ (a < modulus) && (b < modulus) }};
   mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
   mir_return (mir_term {{ repr (value a + value b) }});
-  mir_postcond {{ repr (value a + value b) < modulus }};
 };
 
 let sub_spec = do {
@@ -21,7 +22,6 @@ let sub_spec = do {
   mir_precond {{ (a < modulus) && (b < modulus) }};
   mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
   mir_return (mir_term {{ repr (value a - value b) }});
-  mir_postcond {{ repr (value a - value b) < modulus }};
 };
 
 let mul_spec = do {
@@ -30,7 +30,6 @@ let mul_spec = do {
   mir_precond {{ (a < modulus) && (b < modulus) }};
   mir_execute_func [mir_term a, mir_term b, mir_term {{ modulus : [64] }}];
   mir_return (mir_term {{ repr (value a * value b) }});
-  mir_postcond {{ repr (value a * value b) < modulus }};
 };
 
 normalize_verified <- timeout 600000 (mir_verify m "ntt::mod_normalize" [] false normalize_spec cvc5);

@@ -36,5 +36,6 @@ rec make_vector_proof chunk_size degree =
   };
 let prove_vector chunk_size degree arity statement = do {
   proof <- make_vector_proof chunk_size degree;
-  timeout 600000 (prove_print (do { introduce_math_inputs arity; proof; }) statement);
+  let vector_timeout = if eval_bool {{ `degree >= (2048 : [64]) }} then 1800000 else 600000;
+  timeout vector_timeout (prove_print (do { introduce_math_inputs arity; proof; }) statement);
 };

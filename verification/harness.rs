@@ -120,3 +120,51 @@ pub fn multiply_1024_12289(a: [i64; 1024], b: [i64; 1024]) -> [i64; 1024] {
     out.copy_from_slice(&result);
     out
 }
+
+#[allow(dead_code)]
+pub fn forward_2048_12289(a: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::ntt(&a, 1945, 2048, 12289);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}
+
+#[allow(dead_code)]
+pub fn inverse_2048_12289(a: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::intt(&a, 1945, 2048, 12289);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}
+
+#[allow(dead_code)]
+pub fn multiply_2048_12289(a: [i64; 2048], b: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::polymul_ntt(&a, &b, 2048, 12289, 1945);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}
+
+#[allow(dead_code)]
+pub fn forward_2048_151019521(a: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::ntt(&a, 51689479, 2048, 151019521);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}
+
+#[allow(dead_code)]
+pub fn inverse_2048_151019521(a: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::intt(&a, 51689479, 2048, 151019521);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}
+
+#[allow(dead_code)]
+pub fn multiply_2048_151019521(a: [i64; 2048], b: [i64; 2048]) -> [i64; 2048] {
+    let result = crate::polymul_ntt(&a, &b, 2048, 151019521, 51689479);
+    let mut out = [0; 2048];
+    out.copy_from_slice(&result);
+    out
+}

@@ -1,0 +1,10 @@
+// Prove the complete recursive convolution theorem and its connection to the
+// bit-reversed multiplication specification. No Rust MIR is loaded.
+// All component theorems are established in this process before reuse.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "convolution.saw";
+include "bridge.saw";
+print "Verified complete 1024-point convolution theorem and multiplication specification bridge";

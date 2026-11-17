@@ -1,0 +1,30 @@
+// Both premises are proved by independent model jobs; this proves their
+// implication for spectral multiplication without assuming either as an axiom.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+let math_formula = formula;
+include "model-statements.saw";
+include "multiplication-spec.saw";
+include "staged-product.saw";
+for [0, 1] (\i -> do {
+  saved <- read_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", nth model_names i, ".core"]);
+  check_convertible (nth model_props i) saved;
+});
+let product_identity = formula {{ \(a : Poly) (b : Poly) ->
+  spectral_product a b == staged_product a b }};
+product_identity_prop <- native_proposition 2 n product_identity;
+let bridge_template = parse_core "\\(p : Prop) (q : Prop) (r : Prop) -> p -> q -> r";
+let bridge_statement = beta_reduce_term
+  (term_apply bridge_template (concat model_props [product_identity_prop]));
+model_poly_reflexive <- prove_print (do { goal_eval; trivial; })
+  (formula {{ \(a : Poly) -> (a == a) == True }});
+model_bridge_verified <- prove_print (do {
+  goal_intro_hyps 2;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify_local [0, 1] (addsimp model_poly_reflexive (cryptol_ss ()));
+  trivial;
+}) bridge_statement;
+write_core (str_concat (get_env "NTT_MATH_OUTPUT") "/bridge.core") bridge_statement;
+print "Verified conditional staged-product bridge with both matched model premises";

@@ -1,0 +1,8 @@
+// Full mathematical theorem over the squared modulus.
+import "Ntt2048_151019521.cry";
+let n = 2048;
+let q = 151019521;
+include "lemmas.saw";
+include "convolution.saw";
+include "bridge.saw";
+print "Verified complete 2048-point convolution theorem and multiplication specification bridge";

@@ -85,15 +85,22 @@ and cyclic multiplication for **all signed `i64` inputs**, including both extrem
 | 16 | 17 | 3 |
 | 8 | 289 | 110 |
 | 256 | 12289 | 8340 |
+| 1024 | 12289 | 10302 |
+| 2048 | 12289 | 1945 |
+| 2048 | 151019521 | 51689479 |
 
 The specifications use direct DFT and convolution formulas. The proofs include
 normalization, parameter construction, and MIR safety obligations.
-The 256-point case composes verified butterflies, stages, and slice kernels;
+The larger cases compose verified butterflies, stages, and slice kernels;
 a separate recursive proof connects spectral multiplication to cyclic convolution.
+The 1024-point case uses two successful SAW processes connected through the
+same spectral-product definition, with matching source and build provenance.
+The 2048-point cases check Rust, transform-model equivalence, and convolution
+in separate proof layers, with checked propositions and matching provenance.
 
 See [verification/README.md](verification/README.md) for the pinned toolchain,
-scope, and `bash verification/run.sh` command, which runs all four cases.
-Use `bash verification/run.sh 256-12289` to select the application-sized case.
+scope, and `bash verification/run.sh` command, which runs the four smaller cases.
+Use the documented split workflows for the larger consumer configurations.
 The separate `bash verification/run-foundations.sh` suite proves scalar arithmetic and both butterflies
 for every valid positive `i64` modulus, including the `i128` multiplication path,
 and checks additional parameter and ML-KEM modular-power contracts.

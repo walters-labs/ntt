@@ -1,0 +1,62 @@
+// Every slice has its own closed proof. This file proves that the complete
+// collection implies the original full model, with no model theorem assumed.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+let math_formula = formula;
+include "math-tactics.saw";
+include "math-components.saw";
+let model_props = component_props;
+let model_index = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MATH_COMPONENT")));
+let model_name = nth component_names model_index;
+let slice_count = eval_int (parse_core (str_concat "bvNat 64 " (get_env "NTT_MODEL_COVERAGE_SIZE")));
+include "math-slice-defs.saw";
+let slice_parts = eval_int {{ `n / `slice_count : [64] }};
+let part_indices = map eval_int (eval_list (term_eval {{ [0 .. slice_parts-1] : [slice_parts][64] }}));
+let offsets = map (\i -> eval_int {{ `i * `slice_count : [64] }}) part_indices;
+vector_slices <- for offsets (\offset -> make_vector_slice offset slice_count);
+model_slices <- for offsets (\offset -> make_model_slice offset slice_count);
+slice_props <- for model_slices (\predicate -> native_proposition (nth component_arities model_index) n predicate);
+for part_indices (\i -> do {
+  saved <- read_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", model_name, "-",
+    show (nth offsets i), "-", show slice_count, ".core"]);
+  check_convertible (nth slice_props i) saved;
+});
+
+let vec_type = str_concats ["Vec ", show n, " (Vec 64 Bool)"];
+let pred_type = str_concats [vec_type, " -> ", vec_type, " -> Bool"];
+let names = map (\i -> str_concat "p" (show i)) part_indices;
+let predicate_binders = map (\name -> str_concats ["(", name, " : ", pred_type, ") "]) names;
+let vector_premises = map (\name -> str_concats ["EqTrue (", name, " x y) -> "]) names;
+let vector_template = parse_core (str_concats ["\\", str_concats predicate_binders,
+  "(eq : ", pred_type, ") -> (x : ", vec_type, ") -> (y : ", vec_type, ") -> ",
+  str_concats vector_premises, "EqTrue (eq x y)"]);
+let vector_equality = formula {{ \(x : Poly) (y : Poly) -> x == y }};
+let vector_rule_statement = beta_reduce_term
+  (term_apply vector_template (concat vector_slices [vector_equality]));
+coverage_rule <- prove_print (w4_unint_z3 []) vector_rule_statement;
+print "Verified complete vector-partition coverage rule";
+
+let proposition_binders = map (\name -> str_concats ["(", name, " : Prop) "]) names;
+let proposition_premises = map (\name -> str_concat name " -> ") names;
+let model_template = parse_core (str_concats ["\\", str_concats proposition_binders,
+  "(z : Prop) -> ", str_concats proposition_premises, "z"]);
+let coverage_statement = beta_reduce_term
+  (term_apply model_template (concat slice_props [nth model_props model_index]));
+rec apply_slice_hypotheses index =
+  if eval_bool {{ `index == (`slice_parts : [64]) }} then return ()
+  else do {
+    goal_apply_hyp index;
+    apply_slice_hypotheses (eval_int {{ `index + 1 : [64] }});
+  };
+covered_model <- prove_print (do {
+  goal_intro_hyps slice_parts;
+  a <- goal_intro "a";
+  if binary_component then do { b <- goal_intro "b"; return (); } else return ();
+  goal_apply coverage_rule;
+  apply_slice_hypotheses 0;
+}) coverage_statement;
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", model_name, "-coverage.core"]) coverage_statement;
+write_core (str_concats [get_env "NTT_MATH_OUTPUT", "/", model_name, ".core"])
+  (nth model_props model_index);
+print (str_concat "Verified covered mathematical component: " model_name);

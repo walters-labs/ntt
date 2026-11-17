@@ -1,21 +1,15 @@
 // Requires m, n, butterfly_overrides, and the proved arithmetic simplifications.
-let stage_algebra = do {
-  unfolding ["forwardStage", "inverseStage", "forwardTwiddles", "inverseTwiddles",
-             "constants", "indices", "canonical", "modulus", "modulusInteger", "size"];
-  simplify arithmetic_ss;
-  simplify basic_ss;
-  goal_eval_unint ["value", "repr", "normalize"];
-  simplify arithmetic_ss;
-  goal_eval_unint ["value", "repr", "normalize"];
-  simplify polynomial_ss;
-  goal_eval_unint ["value", "repr", "normalize"];
-  unint_z3 ["value", "normalize"];
-};
-// The butterfly contracts already give the exact formulas and output bounds.
-// Stages only need to establish the indexing and twiddle selection.
+// Large fixed instances need more time per MIR contract. Failure or timeout
+// still stops the run; this changes only the resource allowance.
+let transform_timeout = if eval_bool {{ `n >= (2048 : [64]) }} then 1800000 else 600000;
+include "stage-algebra.saw";
+// Butterfly contracts give exact formulas. Derive their bounds from the proved
+// repr_range rule after expanding the array combinators.
 let stage_solver_proof = do {
   unfolding ["forwardStage", "inverseStage", "forwardTwiddles", "inverseTwiddles",
              "indices", "canonical", "modulus", "modulusInteger", "size"];
+  goal_eval_unint ["value", "repr"];
+  simplify (addsimps [repr_range, normalize_range] (cryptol_ss ()));
   w4_unint_z3 ["value", "repr"];
 };
 let steps = map eval_int (eval_list (term_eval {{ [fromInteger x : [64] | x <- stageSteps] }}));
@@ -38,14 +32,14 @@ let stage_spec inverse_direction step = do {
 include "stage-bounds.saw";
 forward_stages <- for steps (\step -> do {
   bounds <- stage_bounds false step;
-  proof <- timeout 600000 (mir_verify m "ntt::prepared::forward_stage"
+  proof <- timeout transform_timeout (mir_verify m "ntt::prepared::forward_stage"
     butterfly_overrides false (stage_spec false step) (stage_proof bounds));
   print (str_concat "Verified forward stage, step " (show step));
   return proof;
 });
 inverse_stages <- for steps (\step -> do {
   bounds <- stage_bounds true step;
-  proof <- timeout 600000 (mir_verify m "ntt::prepared::inverse_stage"
+  proof <- timeout transform_timeout (mir_verify m "ntt::prepared::inverse_stage"
     butterfly_overrides false (stage_spec true step) (stage_proof bounds));
   print (str_concat "Verified inverse stage, step " (show step));
   return proof;

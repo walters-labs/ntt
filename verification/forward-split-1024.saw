@@ -1,0 +1,15 @@
+// Check the forward-DFT decomposition used by the convolution theorem.
+// This is a mathematical lemma; no Rust MIR is loaded.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+let root_n = eval_int {{ parameters.root }};
+let root_h = eval_int {{ repr (`root_n * `root_n) }};
+print "Checking the isolated 1024-point forward decomposition with 64-output chunks";
+forward_split_verified <- prove_vector 64 n 1 (math_formula
+  {{ \(a : Poly) ->
+    dftN `root_n a == combine `root_n
+      (dftN `root_h (evens a)) (dftN `root_h (odds a)) }});
+print "Verified 1024-point forward DFT decomposition";

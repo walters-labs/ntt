@@ -1,0 +1,5 @@
+// Shared boundary between the mathematical convolution proof and the Rust
+// multiplication contract. Both sides import the same concrete NttSpec module.
+// This is a term definition, not an assumed theorem.
+let spectral_product = {{ \(a : Poly) (b : Poly) ->
+  inverse (normalizePoly (pointwise (forward a) (forward b))) }};

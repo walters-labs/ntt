@@ -9,6 +9,7 @@ multiplication for these fixed parameter sets:
 | 16 | 17 | 3 | Every `i64` |
 | 8 | 289 = 17² | 110 | Every `i64` |
 | 256 | 12289 | 8340 | Every `i64` |
+| 1024 | 12289 | 10302 | Every `i64` |
 
 There are no coefficient-range preconditions on these public-operation proofs.
 Negative coefficients, `i64::MIN`, and `i64::MAX` are included. The scalar
@@ -18,6 +19,8 @@ normalization proof establishes that condition before the transform runs.
 Each small case proves seven Rust/MIR contracts: normalization, modular addition,
 subtraction, multiplication, and the three full operations. The 256-point case
 proves 27 contracts, including reusable butterflies, stages, and slice kernels.
+The 1024-point split workflow proves 31 Rust/MIR contracts and the complete
+mathematical convolution theorem in separate processes with matching provenance.
 The final operation specifications use independent direct formulas:
 
 - `DFT(a)[k] = sum_j normalize(a[j]) * root^(j*k) mod q`, with bit-reversed output.
@@ -72,19 +75,18 @@ bash verification/run.sh 256-12289
 # Build offline when dependencies are already cached.
 CARGO_NET_OFFLINE=true bash verification/run.sh
 
-# Next consumer target (not yet in the completed-coverage table above).
-# Use a separate build/log directory to preserve earlier transcripts.
-NTT_VERIFICATION_TARGET_DIR=target/verification-1024 \
-  bash verification/run.sh 1024-12289
+# For the verified 1024-point case, use the split workflow below.
 ```
 
 The runner validates the case names, builds the current library in debug mode
 once, and selects the exact MIR artifact reported by Cargo. Each selected case
 runs in a separate SAW process with `--detect-vacuity`. A build or proof failure
-stops the command. Rust verification actions have ten-minute timeouts; timing
-out is a failure. Logs are saved as `target/verification/ntt-<case>.log`, or
-under `NTT_VERIFICATION_TARGET_DIR` when set. The 1024-point case is opt-in;
-the default cases and their completed-coverage claim are unchanged.
+stops the command. Rust verification actions normally have ten-minute timeouts;
+the 2048-point stage, model, kernel, and spectral public contracts allow thirty
+minutes each. Timing out is a failure. Logs are saved as `target/verification/ntt-<case>.log`, or
+under `NTT_VERIFICATION_TARGET_DIR` when set. The legacy all-in-one 1024-point
+case remains opt-in; use the split workflow below for the completed proof.
+The default runner still checks the four smaller cases.
 
 The runner limits SAW's Haskell heap to **6 GiB** by default. Override this with
 `NTT_SAW_MAX_HEAP`, using a positive size such as `4096M` or `6G`. This is a heap
@@ -97,6 +99,172 @@ The runner sets:
 ```sh
 export SBV_CVC5_OPTIONS='--lang smt --incremental --nl-cov --solve-bv-as-int=sum'
 ```
+
+To check one mathematical component in a fresh process, without building or
+loading Rust MIR, select an isolated script. For example:
+
+```sh
+python3 verification/run-isolated.py verification/recurrence-1024.saw \
+  --seconds 600 --heap 6G
+
+# Select forward-split-1024.saw or inverse-split-1024.saw for DFT decomposition.
+```
+
+This runner enforces a wall-time deadline outside SAW and stops its process
+group, including solver children, at the deadline. It saves a timestamped log
+and JSON result under `target/verification-isolated/`, including elapsed time,
+exit status, source hashes, and maximum child resident memory. SAW's runtime
+statistics are included in the log. The heap ceiling does not cap total memory
+across SAW and all solver processes. A successful recurrence check establishes
+one mathematical lemma; the full convolution theorem and the Rust multiplication
+API still require their own proofs.
+
+For long runs on macOS, add `--keep-awake`. The runner temporarily prevents idle
+system sleep while SAW is running; this does not override closing the lid. Its
+deadline uses wall time, and the JSON report records wall time, monotonic elapsed
+time, and child CPU time separately. This matters because macOS sleep can pause
+the monotonic clock while SAW's internal timeouts still expire. The assertion is
+released when the proof process exits.
+
+### Separate mathematical and Rust proofs
+
+The split workflow uses `multiplication-spec.saw` as a shared definition:
+
+```text
+spectral_product(a, b) = inverse(normalizePoly(pointwise(forward(a), forward(b))))
+```
+
+The mathematical run proves `convolution(a,b) == spectral_product(a,b)` for all
+coefficient arrays. The Rust run proves that public multiplication returns
+`spectral_product(normalizePoly(a), normalizePoly(b))` for all signed `i64` inputs,
+along with the forward and inverse public contracts. Substitution and equality
+transitivity give the public cyclic-convolution result. Each run proves its
+own statement unconditionally, reusing only proofs established in that process.
+No convolution theorem is assumed in the Rust run, and logs are not imported as
+SAW theorems. This keeps the two large proof histories in separate processes.
+
+The complete split workflow passed at 8 and 1024 points. To repeat the
+1024-point pair, load the toolchain environment, then use:
+
+```sh
+ntt_mir_file="$(python3 verification/build-mir.py)"
+python3 verification/run-isolated.py verification/convolution-1024.saw \
+  --seconds 1800 --heap 10G --keep-awake
+python3 verification/run-isolated.py verification/spectral-1024-12289.saw \
+  --mir "$ntt_mir_file" --detect-vacuity --seconds 3600 --heap 10G --keep-awake
+
+# Replace the two JSON paths with the successful reports printed by those runs.
+python3 verification/check-split.py 1024-12289 MATH_REPORT.json RUST_REPORT.json \
+  --build-report target/verification-split/build-report.json
+```
+
+Omit `--keep-awake` on other operating systems. The 10 GiB heap is an explicit
+budget for the 1024-point pair; the runner's default remains 6 GiB. `build-mir.py` records
+the build inputs and retains the exact MIR bytes under their SHA-256 hash.
+`check-split.py` checks both successes, the shared specification, the proof files
+actually loaded, the concrete Cryptol definitions, Rust sources, and the MIR
+build provenance. A changed unrelated proof script does not invalidate a prior
+mathematical run. Current results and remaining obligations are recorded in
+[the verification checkpoints](results/README.md).
+
+### Three-layer workflow for 2048 points
+
+Both 2048-point tuples have complete passing proofs.
+The mathematical controller keeps the half-size theorem and seven top-level
+identities in separate SAW processes. It then proves two explicit implications:
+the eight premises imply the direct convolution theorem, and that theorem
+implies the shared spectral-product identity. SAW checks the serialized
+propositions for definitional equality at each connection. The controller
+requires every premise's successful proof, source hashes, and unchanged exports.
+Core files contain propositions, not imported theorem objects.
+
+The forward decomposition, inverse decomposition, and schoolbook recurrence
+also support `--slice-size 64 --workers 2`. They use the same checked block
+coverage mechanism as the transform models. Their original complete predicates
+remain the composition boundary; partitioning does not restrict the inputs.
+
+The Rust process verifies all stage, kernel, and public-operation contracts
+against the operational `stagedForward`/`stagedInverse` definitions. A separate
+model controller proves their equality to the direct DFT definitions and the
+resulting product identity. This avoids retaining the Rust verification history
+while expanding the dense DFT. The final checker requires all three layers.
+
+`model_proof.py --slice-size 64` proves each block of 64 output coefficients for
+every input array. It then proves a vector-coverage rule and an explicit
+implication from all block predicates to the original full model. SAW checks
+every serialized premise for definitional equality; the controller requires an
+unbroken partition, successful closed proofs of every block, and the matching
+coverage proof. `--workers 2` runs at most two block jobs simultaneously, with
+2 GiB heaps by default. A missing block cannot establish the full model.
+
+The first 2048-point case can also reuse the archived 1024-point direct theorem
+as its half-size premise. `--reuse-half REPORT.json` validates that checkpoint's
+successful report, transcript, and historical proof sources against the archive
+manifest; the mathematical definitions and convolution factory must still match.
+A fresh SAW adapter imports both instances and checks their direct propositions
+for definitional equality. `--reuse-recurrence REPORT.json` similarly connects
+the completed standalone recurrence. These options are optional: without them,
+the controller proves those nodes afresh. Once cached, the checked nodes are
+reused automatically.
+
+```sh
+# Build once and retain this exact artifact for both Rust runs.
+ntt_mir_file="$(python3 verification/build-mir.py --target-dir target/verification-2048)"
+
+python3 verification/math_proof.py 2048-12289 --heap 10G --nursery 32M \
+  --slice-size 64 --workers 2 --keep-awake
+python3 verification/model_proof.py 2048-12289 \
+  --slice-size 64 --workers 2 --nursery 32M --keep-awake
+python3 verification/run-isolated.py verification/staged-2048-12289.saw \
+  --mir "$ntt_mir_file" --detect-vacuity --seconds 18000 --heap 12G \
+  --nursery 32M --keep-awake
+python3 verification/check-split.py 2048-12289 \
+  target/verification-math/2048-12289/math-result.json RUST_REPORT.json \
+  --model-report target/verification-models/2048-12289/model-result.json \
+  --build-report target/verification-2048/build-report.json
+
+# The squared-modulus half-size theorem also needs the component workflow.
+# This 1024-point tuple is an internal premise for the 2048-point target.
+python3 verification/math_proof.py 1024-151019521 --heap 6G --nursery 32M \
+  --slice-size 64 --workers 2 --keep-awake
+python3 verification/math_proof.py 2048-151019521 --heap 10G --nursery 32M \
+  --slice-size 64 --workers 2 --keep-awake \
+  --reuse-half-graph target/verification-math/1024-151019521/math-result.json
+# Run the model, staged Rust, and final checker commands above with
+# 2048-151019521 in place of 2048-12289, retaining the same MIR/build report.
+```
+
+Run the large commands sequentially on a 16 GiB machine. The block workers are
+bounded independently of the other commands; heap limits are per process, not
+an aggregate machine-memory limit. Repeating either controller command
+validates and reuses completed nodes; changed proof dependencies invalidate the
+affected cache entries. Exported propositions are retained by content hash.
+`--check PATH` validates a completed graph without rerunning SAW. The full
+workflow, including its connection to Rust, passed at 8 points; negative checks
+reject missing premises, failed runs, wrong selectors, changed exports/shared
+definitions, and unmatched composition inputs.
+
+`--reuse-half-graph` requires the complete checked 1024-point graph. A fresh
+SAW adapter reads its exact exported convolution proposition, checks it against
+the imported 1024-point specification, and checks equality with the required
+2048-point half-size proposition. The controller pins the nested graph and its
+exports by hash and validates every dependency; a timed-out partial run cannot
+satisfy this premise.
+
+`check-split.py` also freezes its JSON input reports by content hash, preserving
+the exact build and proof records if convenient cache/build paths are refreshed.
+Both graph validators and the final checker verify the concrete Ntt import
+throughout the loaded proof-script closure. Sharing a template file alone does
+not identify its parameter instance; mismatched or shadowing imports are rejected.
+The runners accept optional GHC runtime settings `--nursery 32M` and `--compact`;
+these affect allocation and collection, not the propositions or proof obligations.
+The selected settings are recorded in each command and resource report.
+
+Large component proofs allow one hour each, with a separate external deadline;
+the half-size theorem allows forty minutes at 12289 and ninety minutes at
+151019521 overall. Model blocks allow ten minutes internally and 700 seconds
+externally. These are failure limits,
+not runtime estimates. Current measured results are in `results/README.md`.
 
 CVC5's [bit-vector-to-integer translation](https://cvc5.github.io/docs/cvc5-1.3.0/options.html)
 makes the word/integer representation proofs tractable. It preserves the exact
@@ -204,11 +372,52 @@ source revisions, findings, and remaining integration obligations.
 - `convolution.saw`: a recursive proof of the convolution theorem by doubling
   through the selected instance's length. The inverse of two is computed from
   its odd modulus; the constituent identities are proved for that instance.
+- `math-tactics.saw`: the shared algebraic tactics used by the full theorem and
+  isolated checks, so the latter exercise the same proof code.
+- `recurrence-1024.saw`, `forward-split-1024.saw`, `inverse-split-1024.saw`:
+  isolated checks of the schoolbook recurrence and both DFT decompositions at
+  length 1024.
+- `inverse-linearity-1024.saw`, `inverse-shift-1024.saw`: inverse additivity
+  and the inverse shift identity for the 512-point subtransforms used by the
+  1024-point convolution theorem.
+- `spectral-sums-1024.saw`, `spectral-diffs-1024.saw`: spectral-product sum
+  and difference decompositions for four arbitrary 512-element arrays in the
+  1024-point convolution theorem.
+- `convolution-1024.saw`: math-only entry for the complete recursive convolution
+  theorem and the bridge to the bit-reversed multiplication specification.
+  It proves every component and smaller-length dependency in the same process.
+- `multiplication-spec.saw`, `verify-spectral.saw`, `compose-spectral.saw`,
+  `pointwise-result-spectral.saw`: shared spectral-product definition and the
+  independent Rust half of the split proof.
+- `spectral-8-17.saw`, `spectral-1024-12289.saw`, `convolution-8-17.saw`: split-proof
+  entry scripts and the small regression case.
+- `build-mir.py`, `check-split.py`: current-build provenance and validation that
+  the mathematical and Rust runs use the same definitions and exact artifacts.
+- `run-isolated.py`: external deadline, heap ceiling, and resource reporting
+  for one isolated check.
 - `vector-proofs.saw`: proved vector-equality splitting rules. Large mathematical
   identities are checked in pieces of at most 64 outputs, covering both halves
   at every split and preserving the original universally quantified statement.
 - `bridge.saw`, `compose.saw`: bit-reversal identities and public API proofs,
   including parameter construction and twiddle-table matching.
+- `bridge-lemmas.saw`: shared structural bit-reversal and normalization rules
+  used by the original bridge and the conditional mathematical bridge.
+- `Ntt2048.cry`, `Ntt2048_151019521.cry`: the two fixed 2048-point specifications.
+- `math-components.saw`, `math-component.saw`, `math-half.saw`, `math-compose.saw`,
+  `math-bridge.saw`, and their concrete entry scripts: separately proved
+  mathematical components and checked conditional composition.
+- `math_proof.py`: resumable mathematical proof controller and graph validator.
+- `model_proof.py`, `model-component.saw`, `model-bridge.saw`: independent
+  transform-model proofs and the checked implication for spectral multiplication.
+- `model-slice.saw`, `model-coverage.saw`: bounded output-block proofs and their
+  complete-coverage implication. Every block retains universal input scope.
+- `math-slice.saw`, `math-coverage.saw`: the corresponding closed blocks and
+  coverage implications for mathematical forward/inverse decomposition and
+  schoolbook recurrence; both controllers share the block runner and validator.
+- `verify-staged-api.saw`, `kernels-staged.saw`, `compose-staged.saw`: the Rust
+  layer against operational stages, without loading the dense DFT model proofs.
+- `math-adapt-recurrence-2048.saw`: checked statement adapter for the completed
+  standalone recurrence; reuse also requires that original successful proof.
 - `ntt-*.saw`: entry scripts selecting a concrete specification.
 - `verify-staged.saw`: common staged-proof driver. Length, modulus, roots,
   convolution depth, and public wrapper names come from the selected instance.
@@ -266,39 +475,44 @@ the tactics do not discard obligations.
 
 ## Remaining milestones
 
-The [saved results and restart notes](results/README.md) record the stopping
-point, retained transcripts, and the next bounded experiment.
+The [saved results](results/README.md) record completed proofs, resource use,
+retained transcripts, and source/build provenance.
 
 The selected completion target is the **three fixed consumer parameter sets**
 below, with arbitrary signed input coefficients at each tuple. Arbitrary
 lengths/moduli across the entire generic API are outside this target.
-See the [verification roadmap](roadmap.md). The next step is completing the
-1024-point proof with the existing Cryptol/SAW approach.
+See the [verification roadmap](roadmap.md). Forward, inverse, and cyclic
+multiplication are complete for all three selected tuples.
 
 | Milestone | Remaining work |
 | --- | --- |
-| Consumer transform sizes | Complete `(1024,12289,10302)`, then `(2048,12289,1945)` and `(2048,151019521,51689479)`. Each needs successful stage, DFT-model, kernel, convolution, and public-operation proofs. |
+| Consumer transform sizes | Complete at `(1024,12289,10302)`, `(2048,12289,1945)`, and `(2048,151019521,51689479)`, including stage, DFT-model, kernel, convolution, and public-operation proofs. |
 | Parameter generation | Connect the consumers' actual `omega` calls to the roots required by those proofs. Acceptance of a supplied root does not prove root generation. |
 | Consumer integration | Fix stale roots after parameter changes and input-dependent padding; prove actual padding, reduction modulo `x^d+1`, and coefficient representation. Pin the resolved dependency versions. |
 | Reproducible release | Run the proofs against the exact release source and record toolchain, dependency, and proof results; add an automated verification gate. |
 
-`ntt-1024-12289.saw` is the next proof candidate. Its complete run should produce
-31 successful MIR contracts (four arithmetic, two butterfly, twenty stage, two
-kernel, and three public-operation contracts), plus the mathematical lemmas.
-Creating the script or passing only its stages does not establish the final
-transform or multiplication claims. Until the complete run succeeds, 1024 points
-must stay out of the completed-coverage table.
+The complete 1024-point split proof passed on November 16. The mathematical
+theorem and spectral-product bridge took 1,473.838 wall seconds with 6.53 GiB
+maximum child RSS. The Rust half took 2,095.494 wall seconds with 5.99 GiB
+maximum child RSS and passed all 31 contracts: four arithmetic, two butterfly,
+twenty stage, two kernel, and three public-operation contracts. Both used a
+10 GiB heap cap and temporary idle-sleep prevention. `check-split.py` validated
+the shared definitions, actual proof dependencies, Rust sources, and exact MIR.
+The two processes ran sequentially; their memory peaks do not add together.
+The legacy all-in-one `ntt-1024-12289.saw` remains available; the split workflow
+avoids retaining the Rust and mathematical proof histories together.
 
-The 1024-point arithmetic, butterflies, all stages, direct-DFT models, and slice
-kernels have passed. The public forward and inverse transforms have also been
-proved for every signed input. Cyclic multiplication remains in progress, so this
-tuple is not yet in the table of cases covering all three operations.
-The schoolbook-convolution recurrence passed in an isolated check, but the full
-mathematical proof timed out in a long-lived session whose memory footprint
-reached about 29 GiB. That session has been closed. The next proof-development
-step is to complete multiplication with smaller, separately retained lemmas in
-a fresh process under the heap limit. A complete 1024-point batch run under that
-limit has not yet succeeded; the 2048-point cases should wait for this result.
+Both 2048-point cases passed on November 17 using the three-layer workflow.
+Each Rust run passed 33 MIR contracts with vacuity checking. The runs took
+about 2 h 25 min / 2 h 34 min and reached 4.45 / 6.44 GiB maximum child RSS.
+Mathematical and model proofs add substantial work to a clean replay; allow
+several hours per tuple on the 16 GiB development Mac. The controllers validate
+and reuse completed nodes, and the completed graphs/final gates recheck in
+under a second here. Changed dependencies invalidate the affected cached proofs.
+See `results/README.md` for exact measurements and the retained archive.
+
+The earlier 6 GiB heap failure, unsuccessful chunk-size/subproof experiments,
+and sleep-related timeout are retained in [the detailed results](results/README.md).
 ML-KEM implements its own NTT; verifying it or a whole cryptosystem is separate.
 Functional MIR proofs do not establish constant-time execution or correctness of
 compiled machine code.

@@ -6,9 +6,9 @@ let model_proof = do {
   stage_algebra;
 };
 print "Proving the forward stage model against the direct DFT";
-forward_model <- timeout 600000 (prove_print model_proof (formula
+forward_model <- timeout transform_timeout (prove_print model_proof (formula
   {{ \(a : Poly) -> forward a == stagedForward a }}));
 print "Verified forward stage model; proving the inverse model";
-inverse_model <- timeout 600000 (prove_print model_proof (formula
+inverse_model <- timeout transform_timeout (prove_print model_proof (formula
   {{ \(a : Poly) -> inverse a == stagedInverse a }}));
 print "Verified staged transforms against the independent DFT formulas";

@@ -1,0 +1,20 @@
+// Check inverse shift for the half-size transforms used by the
+// 1024-point convolution theorem. No Rust MIR is loaded.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+let half_degree = eval_int {{ `n / 2 : [64] }};
+let root_n = eval_int {{ parameters.root }};
+let inverse_root_n = eval_int {{ parameters.inverseRoot }};
+let inverse_degree_n = eval_int {{ parameters.inverseLength }};
+let root_h = eval_int {{ repr (`root_n * `root_n) }};
+let inverse_root_h = eval_int {{ repr (`inverse_root_n * `inverse_root_n) }};
+let inverse_degree_h = eval_int {{ repr (`inverse_degree_n * 2) }};
+print "Checking inverse shift on 512-element arrays with 64-output chunks";
+inverse_shift_verified <- prove_vector 64 half_degree 1 (math_formula
+  {{ \(a : [half_degree]Coeff) ->
+    idftN `inverse_root_h `inverse_degree_h (phase `root_h a) ==
+      rotate (idftN `inverse_root_h `inverse_degree_h a) }});
+print "Verified inverse shift for the 1024-point convolution proof";

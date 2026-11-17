@@ -1,0 +1,27 @@
+// Prove the direct-convolution-to-spectral bridge as an explicit implication.
+// The controller separately validates the component proofs for its premise.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+include "lemmas.saw";
+include "math-tactics.saw";
+include "math-components.saw";
+include "bridge-lemmas.saw";
+saved_convolution <- read_core (str_concat (get_env "NTT_MATH_OUTPUT") "/convolution.core");
+check_convertible full_convolution_prop saved_convolution;
+let spectral_identity = math_formula {{ \(a : Poly) (b : Poly) ->
+  convolution a b == spectral_product a b }};
+spectral_identity_prop <- native_proposition 2 n spectral_identity;
+let bridge_template = parse_core "\\(p : Prop) (q : Prop) -> p -> q";
+let conditional_bridge = beta_reduce_term
+  (term_apply bridge_template [full_convolution_prop, spectral_identity_prop]);
+bridge_verified <- prove_print (do {
+  goal_intro_hyp;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify (addsimp normalize_pointwise (cryptol_ss ()));
+  simplify_local [0] compact_fourier_ss;
+  trivial;
+}) conditional_bridge;
+write_core (str_concat (get_env "NTT_MATH_OUTPUT") "/bridge.core") conditional_bridge;
+write_core (str_concat (get_env "NTT_MATH_OUTPUT") "/spectral-identity.core") spectral_identity_prop;
+print "Verified conditional spectral bridge with matched convolution premise";

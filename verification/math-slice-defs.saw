@@ -1,0 +1,30 @@
+// Independently spell out the two vectors, then check their equality is exactly
+// the existing component predicate before partitioning its output coefficients.
+let binary_component = eval_bool {{ `model_index == (4 : [64]) }};
+let selected_model_left = if binary_component then {{ \(a : Poly) (b : Poly) ->
+  interleave (addN (convN (evens a) (evens b))
+                  (rotate (convN (odds a) (odds b))))
+             (addN (convN (evens a) (odds b))
+                   (convN (odds a) (evens b))) }}
+  else if eval_bool {{ `model_index == (0 : [64]) }} then {{ \(a : Poly) -> dftN `root_n a }}
+  else {{ \(a : Poly) -> idftN `inverse_root_n `inverse_degree_n a }};
+let selected_model_right = if binary_component then {{ \(a : Poly) (b : Poly) -> convN a b }}
+  else if eval_bool {{ `model_index == (0 : [64]) }} then {{ \(a : Poly) ->
+    combine `root_n (dftN `root_h (evens a)) (dftN `root_h (odds a)) }}
+  else {{ \(a : Poly) -> interleave
+    (idftN `inverse_root_h `inverse_degree_h (halfSums a))
+    (idftN `inverse_root_h `inverse_degree_h (halfDiffs `inverse_root_n a)) }};
+let selected_predicate = if binary_component then
+  math_formula {{ \(a : Poly) (b : Poly) -> selected_model_left a b == selected_model_right a b }}
+  else math_formula {{ \(a : Poly) -> selected_model_left a == selected_model_right a }};
+check_convertible selected_predicate (nth component_statements model_index);
+let make_model_slice offset count = return (if binary_component then
+  math_formula {{ \(a : Poly) (b : Poly) ->
+    take`{front=count} (drop`{front=offset} (selected_model_left a b)) ==
+    take`{front=count} (drop`{front=offset} (selected_model_right a b)) }}
+  else math_formula {{ \(a : Poly) ->
+    take`{front=count} (drop`{front=offset} (selected_model_left a)) ==
+    take`{front=count} (drop`{front=offset} (selected_model_right a)) }});
+let make_vector_slice offset count = return (formula {{ \(x : Poly) (y : Poly) ->
+  take`{front=count} (drop`{front=offset} x) ==
+  take`{front=count} (drop`{front=offset} y) }});

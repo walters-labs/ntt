@@ -1,0 +1,17 @@
+// Rust-only layer. Every MIR override is proved in this process. Independent
+// mathematical model proofs connect stagedForward/stagedInverse to the DFT.
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+let suffix = str_concat (show n) (str_concat "_" (show q));
+let entry operation = str_concat "ntt::verification::" (str_concat operation suffix);
+m <- mir_load_module mir_path;
+include "arithmetic.saw";
+include "lemmas.saw";
+let arithmetic_overrides = [normalize_verified, add_verified, sub_verified, mul_verified];
+include "butterflies.saw";
+include "stages.saw";
+let transform_timeout = 3600000;
+include "kernels-staged.saw";
+include "staged-product.saw";
+let math_formula t = rewrite (cryptol_ss ()) t;
+include "compose-staged.saw";

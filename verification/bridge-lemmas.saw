@@ -1,0 +1,63 @@
+// Connect the two direct-formula presentations structurally. Rewriting their
+// index lists and closed parameters makes the bodies identical, avoiding an
+// expansion of the full N-by-N matrices. Every rewrite below is proved.
+include "multiplication-spec.saw";
+indices_range <- prove_print (do { goal_eval; trivial; }) {{ indices == range`{N} }};
+size_literal <- prove_print (do { goal_eval; trivial; }) {{ size == `n }};
+poly_reflexive <- prove_print (do { goal_eval; trivial; })
+  (math_formula {{ \(a : Poly) -> (a == a) == True }});
+let structural_ss = addsimps [indices_range, size_literal, poly_reflexive] (cryptol_ss ());
+dft_formula <- prove_print (do {
+  unfolding ["dft", "dftN"];
+  simplify structural_ss;
+  trivial;
+}) (math_formula {{ \(w : Coeff) (a : Poly) -> dft w a == dftN (toInteger w) a }});
+print "Verified structural DFT identity";
+convolution_formula <- prove_print (do {
+  unfolding ["convN", "convolution"];
+  simplify structural_ss;
+  trivial;
+}) (math_formula {{ \(a : Poly) (b : Poly) -> convN a b == convolution a b }});
+print "Verified structural convolution identity";
+let bridge_root = eval_int {{ parameters.root }};
+let bridge_inverse_root = eval_int {{ parameters.inverseRoot }};
+let bridge_inverse_length = eval_int {{ parameters.inverseLength }};
+// Expose the parameter fields so these literal conversions match the roots
+// inside the DFT definitions, without evaluating the DFTs themselves.
+root_value <- prove_print (do { goal_eval; trivial; })
+  (math_formula (unfold_term ["parameters"] {{ toInteger parameters.root == `bridge_root }}));
+inverse_root_value <- prove_print (do { goal_eval; trivial; })
+  (math_formula (unfold_term ["parameters"] {{ toInteger parameters.inverseRoot == `bridge_inverse_root }}));
+inverse_length_value <- prove_print (do { goal_eval; trivial; })
+  (math_formula (unfold_term ["parameters"] {{ toInteger parameters.inverseLength == `bridge_inverse_length }}));
+let bridge_ss = addsimps [dft_formula, root_value, inverse_root_value,
+                         inverse_length_value, poly_reflexive] (cryptol_ss ());
+forward_fourier <- prove_print (do {
+  unfolding ["forward"];
+  simplify bridge_ss;
+  trivial;
+}) (math_formula {{ \(a : Poly) -> forward a == permute (dftN `bridge_root a) }});
+print "Verified compact forward bridge";
+inverse_fourier <- prove_print (do {
+  unfolding ["inverse", "idftN"];
+  simplify bridge_ss;
+  trivial;
+}) (math_formula {{ \(a : Poly) ->
+  inverse a == idftN `bridge_inverse_root `bridge_inverse_length (permute a) }});
+print "Verified compact inverse bridge";
+permuted_product <- prove_print (do {
+  unfolding ["permute", "bitReverse", "pointwise"];
+  goal_eval_unint ["value", "repr"];
+  unint_z3 ["value", "repr"];
+}) (math_formula {{ \(a : Poly) (b : Poly) ->
+  permute (pointwise (permute a) (permute b)) == pointwise a b }});
+normalize_pointwise <- prove_print (do {
+  unfolding ["normalizePoly", "pointwise"];
+  simplify (addsimp normalize_repr (cryptol_ss ()));
+  goal_eval_unint ["normalize", "repr", "value"];
+  simplify (addsimp normalize_repr (cryptol_ss ()));
+  unint_z3 ["normalize", "repr", "value"];
+}) (math_formula {{ \(a : Poly) (b : Poly) ->
+  normalizePoly (pointwise a b) == pointwise a b }});
+let compact_fourier_ss = addsimps [forward_fourier, inverse_fourier, permuted_product,
+  convolution_formula, poly_reflexive] (cryptol_ss ());

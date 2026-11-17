@@ -1,0 +1,17 @@
+// Check the spectral-product sum identity used by the 1024-point
+// convolution theorem. No Rust MIR is loaded.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+let half_degree = eval_int {{ `n / 2 : [64] }};
+let root_n = eval_int {{ parameters.root }};
+let root_h = eval_int {{ repr (`root_n * `root_n) }};
+print "Checking spectral product sums on four 512-element arrays with 64-output chunks";
+spectral_sums_verified <- prove_vector 64 half_degree 4 (math_formula
+  {{ \(a : [half_degree]Coeff) (b : [half_degree]Coeff)
+      (c : [half_degree]Coeff) (d : [half_degree]Coeff) ->
+    halfSums (pointwise (combine `root_n a b) (combine `root_n c d)) ==
+      addN (pointwise a c) (phase `root_h (pointwise b d)) }});
+print "Verified spectral product sums for the 1024-point convolution proof";

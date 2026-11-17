@@ -1,0 +1,19 @@
+// Check the inverse-DFT decomposition used by the convolution theorem.
+// This is a mathematical lemma; no Rust MIR is loaded.
+import "Ntt1024.cry";
+let n = 1024;
+let q = 12289;
+include "lemmas.saw";
+include "math-tactics.saw";
+let inverse_root_n = eval_int {{ parameters.inverseRoot }};
+let inverse_degree_n = eval_int {{ parameters.inverseLength }};
+let inverse_root_h = eval_int {{ repr (`inverse_root_n * `inverse_root_n) }};
+let inverse_degree_h = eval_int {{ repr (`inverse_degree_n * 2) }};
+print "Checking the isolated 1024-point inverse decomposition with 64-output chunks";
+inverse_split_verified <- prove_vector 64 n 1 (math_formula
+  {{ \(a : Poly) ->
+    idftN `inverse_root_n `inverse_degree_n a ==
+      interleave
+        (idftN `inverse_root_h `inverse_degree_h (halfSums a))
+        (idftN `inverse_root_h `inverse_degree_h (halfDiffs `inverse_root_n a)) }});
+print "Verified 1024-point inverse DFT decomposition";

@@ -29,8 +29,9 @@ Distinguish the ring degree `d` from the length `N` passed to `ntt`.
 | Ring-LWE small example/test/benchmark | Four coefficients per input, `q=17` | Pads and calls `polymul_ntt` | `N=8`, root `9` |
 
 The numeric roots above were checked using this checkout's `omega` and the
-independent product tests in `tests/consumer_contracts.rs`. They are not proofs
-of general root generation or of the larger transforms.
+independent product tests in `tests/consumer_contracts.rs`. Formal transform
+proofs now cover all three fixed tuples; the consumers' root-generation calls
+remain a separate obligation.
 
 Source anchors:
 
@@ -88,8 +89,10 @@ No whole-cryptosystem correctness or security claim follows from the NTT proofs.
 3. **Partially completed:** establish parameter-validation contracts. Length-one
    validation and acceptance of the three larger consumer tuples are proved;
    general validation and the consumers' actual root-generation calls remain.
-4. **In progress:** extend the transform proof to `(1024,12289,10302)`, then
-   `(2048,12289,1945)` and `(2048,151019521,51689479)`.
+4. **Completed:** forward, inverse, and cyclic-multiplication proofs passed for
+   all signed coefficients at `(1024,12289,10302)`, `(2048,12289,1945)`, and
+   `(2048,151019521,51689479)`. The 2048-point gates connect closed mathematical,
+   transform-model, and Rust proofs to the exact source and MIR build.
 5. Resolve the consumer parameter findings and prove the actual negacyclic
    adapters. Record exact dependency versions and repeat verification against
    the code that is released.
