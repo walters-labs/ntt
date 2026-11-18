@@ -68,11 +68,12 @@ cached MIR imports against prior proofs, exact contracts, and reachable MIR
 graph identity. This extends the trusted boundary to that checker; running an
 individual script with imported contracts is insufficient.
 
-The [prepared crate releases](consumer-release/README.md) apply those consumer
-patches in real release branches and prepare `ntt 0.1.10`, `ring-lwe 0.1.9`,
-and `module-lwe 0.1.6`. Their exact packaged sources pass native checks and
-match the complete verified MIR entry graphs. Publication and a final check
-against public-registry prerequisites follow review of those branches.
+The release integration is published as **NTT 0.1.10**, **Ring-LWE 0.1.9**,
+and **Module-LWE 0.1.6**. All published package checksums match the checked
+artifacts. Registry-backed tests and MIR comparisons passed using the actual
+published prerequisites. See [the publication checkpoint](publication/README.md)
+for exact source commits, evidence, and its cached audit. The proof scope and
+trusted-checker assumptions above are unchanged.
 
 ## Toolchain
 

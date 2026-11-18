@@ -155,3 +155,13 @@ No whole-cryptosystem correctness or security claim follows from the NTT proofs.
 
 The 256-point proof remains a valid earlier milestone. The full default consumer
 transform targets are 1024 and 2048 points; none is covered by that proof alone.
+
+## Published integration
+
+NTT 0.1.10, Ring-LWE 0.1.9, and Module-LWE 0.1.6 are now published. Their
+registry-backed package checks and MIR proof transfers passed, and all uploaded
+checksums and public Git tags match the checked artifacts and source commits.
+The source and registry requirements are exact for NTT, Ring-LWE, and
+polynomial-ring. See `publication/README.md` for the completed release record.
+Earlier descriptions of pending application/publication describe their
+historical checkpoints; the current release integration is complete.

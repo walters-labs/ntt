@@ -1,5 +1,26 @@
 # Registry-backed release checks
 
+Published on November 17, 2026: **ntt 0.1.10**, **ring-lwe 0.1.9**, and
+**module-lwe 0.1.6**. Their published checksums match the exact checked archives.
+All release commits and annotated version tags are pushed.
+
+The registry-backed suites passed 70 test executions, NTT Clippy with warnings
+denied, and consumer benchmark compilation. NTT's three public transform
+graphs match both original proof builds; the two consumer contexts match all
+three complete entry graphs. No local prerequisite substitutes were used.
+
+The immutable evidence bundle is `../results/2026-11-17-published.tar.gz`.
+Audit its packages, dependency checksums, public tags, source, transcripts,
+MIR identities, and manifest with:
+
+```sh
+python3 verification/publication/archive.py --check
+```
+
+The original NTT proof checkout remains separate from its version-bumped
+release worktree so the historical proof gates can still run unchanged.
+
+
 Publish in dependency order: NTT 0.1.10, Ring-LWE 0.1.9, Module-LWE 0.1.6.
 `check.py` never uploads. It requires committed, clean release sources and
 checks the exact Cargo package before a separate authorized publishing action.

@@ -1,5 +1,37 @@
 # Verification checkpoints
 
+## November 17: published packages with registry-backed proof transfer
+
+NTT 0.1.10, Ring-LWE 0.1.9, and Module-LWE 0.1.6 are published. Each official
+crates.io checksum equals its exact checked package archive. Public annotated
+tags identify the clean release commits; the release branches and tags are pushed.
+Ring-LWE was checked against the published NTT package, and Module-LWE against
+both published prerequisites. No local substitutes were used in these checks.
+
+All 70 test executions passed, including NTT debug/release tests and all
+package documentation examples. NTT Clippy passed with warnings denied;
+both consumer benchmark sets compile. NTT's complete public forward, inverse,
+and multiplication MIR graphs match both original proof builds (2,160 reachable
+declarations each). Ring-LWE's local package and Module-LWE's registry-backed
+Ring-LWE context each match all three complete consumer entry graphs (2,347
+reachable declarations). This carries the existing fixed-parameter and
+fixed-array claims under the already documented trusted-checker assumptions.
+
+Release commits:
+
+- ntt 0.1.10: `3ba35fd6e2d3f91689351dc23f3abe48247c94f3`; package SHA-256 `ca50630c9e312593bd5c479ee8b5b8fc8f1db7d9706f961c09f7e28e00fceac4`.
+- ring-lwe 0.1.9: `85163eec520ad26d2b9d277fb9dcf0315412367c`; package SHA-256 `ff467c3d6ce8e32dfbdd570ae8faa007a0f653a667924c51f308c78495ad6eb7`.
+- module-lwe 0.1.6: `37d95b16790034c710cfaf73b4bb7d8c7e52bed6`; package SHA-256 `8af611e062f7aa89803d883e7890c6225770fcc8ddb8e5621948455cdfd79129`.
+
+`2026-11-17-published.tar.gz` retains exact published packages, checksum/index
+receipts, public tag confirmations, source snapshots, registry dependency
+metadata, MIR, test/build/publish logs, and a complete hash manifest. Earlier
+proof archives remain immutable prerequisites. The cached publication audit
+rechecks all these links and the existing underlying proof gates; see
+`../publication/README.md`. The original proof checkout is preserved separately
+from the version-bumped release worktree. Publication of these versions is complete.
+
+
 ## November 17: prepared crate releases and package proof transfer
 
 The source patches are applied to local release branches for NTT 0.1.10,

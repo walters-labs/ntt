@@ -119,20 +119,18 @@ previous closed proofs, identical contracts, and complete reachable MIR graphs
 before accepting cached MethodSpecs. See `consumer-call/README.md` for the
 precise input representation and extended trusted boundary.
 
-The release-integration checkpoint in `consumer-release/` applies the patches
-to local release branches and prepares NTT 0.1.10, Ring-LWE 0.1.9, and Module-LWE
-0.1.6. Their exact crate sources are tested and all three rebuilt consumer
-entry graphs match the successful composed proof. The original NTT proof
-checkout remains intact; its version bump lives in a separate release worktree.
+The release integration is now published: NTT 0.1.10, Ring-LWE 0.1.9, and
+Module-LWE 0.1.6. Registry-backed checks passed without local prerequisite
+substitutes. Every uploaded checksum matches its checked package, and the
+public tags identify the clean source commits. All 70 package-test executions,
+lint/benchmark checks, and MIR proof transfers passed. See `publication/README.md`.
 
-1. Review and commit the prepared source and evidence. Publish NTT, Ring-LWE,
-   then Module-LWE in dependency order, repeating package verification against
-   the registry as each prerequisite becomes available.
-2. Retain the resulting final package hashes and keep the checked proof graphs
-   and cached audits in the release workflow. Direct calls on arbitrary
-   independently allocated `Polynomial` heap layouts remain outside this
-   fixed-array entry checkpoint, as do other generic API parameter tuples and
-   whole-cryptosystem verification.
+The original proof checkout remains intact; its version bump lives in a
+separate release worktree. No release step remains for these versions.
+Future source or dependency changes require the corresponding package/proof
+checks again. Direct calls on arbitrary independently allocated `Polynomial`
+heap layouts, other generic API parameter tuples, and whole-cryptosystem
+verification remain outside this fixed-array target.
 
 ## Already established
 
