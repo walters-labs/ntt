@@ -1,0 +1,21 @@
+import "AdapterSpec.cry";
+import "ScalarSpec.cry";
+m <- mir_load_module (get_opt 1);
+let normalize_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p }};
+  mir_execute_func [mir_term a, mir_term p];
+  mir_return (mir_term {{ normalize p a }});
+  mir_postcond {{ normalize p a < p }};
+};
+rem_verified <- timeout 30000 (mir_verify m "core::num::{impl#3}::rem_euclid" [] false normalize_spec cvc5);
+let center_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p }};
+  mir_execute_func [mir_term a, mir_term p];
+  mir_return (mir_term {{ centered p (signedValue a) }});
+};
+center_verified <- timeout 60000 (mir_verify m "ntt_consumer_adapter_proof::center_coefficient" [rem_verified] true center_spec cvc5);
+print "Verified consumer scalar centering for all signed coefficients and valid moduli";

@@ -1,0 +1,179 @@
+{
+  "current_mir": "target/verification-consumer-call/artifacts/58464d60375f2eb9482ad4ab0d93e4fd520ad4d7ffa80ba8c12f01000c6a8863.linked-mir.json",
+  "boundary_mir": "target/verification-polynomial-boundary/artifacts/bfc17ad0568cfa0573255165d687c22e32d2ef2459f4e9d99efc4612ca93398d.linked-mir.json",
+  "old_1024_mir": "target/verification-split/artifacts/82a82980fd726fe96b890cbc98c150f6da05f8831e3ce2c1f6d527c8890995a0.linked-mir.json",
+  "old_2048_mir": "target/verification-2048/artifacts/a4c42718c1d5c926b65d3e5ca936aec4127a1f6ac1396ddcc9163f4e0007dd3a.linked-mir.json",
+  "ring": "target/verification-polynomial-boundary/checkouts/ring-lwe-555b26a579779f265bce237d9c2d3d5c91090372",
+  "pairs": {
+    "2048-12289": "target/verification-isolated/paired-2048-12289-20261117T055025426841Z.json",
+    "2048-151019521": "target/verification-isolated/paired-2048-151019521-20261117T060232215654Z.json"
+  },
+  "imports": [
+    "import-kernel-1024",
+    "import-kernel-2048",
+    "import-constructor",
+    "import-padding",
+    "import-padding-normalized",
+    "import-cyclic-1024",
+    "import-cyclic-2048-12289",
+    "import-cyclic-2048-151019521"
+  ],
+  "tasks": [
+    {
+      "name": "padding-symbolic-512",
+      "kind": "padding",
+      "case": null,
+      "degree": 512,
+      "mir": "boundary_mir",
+      "marker": "Verified padding for every logical input length with initialized backing storage",
+      "mir_contracts": 1,
+      "conversions": 0,
+      "seconds": 660,
+      "heap": "3G"
+    },
+    {
+      "name": "padding-symbolic-1024-long",
+      "kind": "padding",
+      "case": null,
+      "degree": 1024,
+      "mir": "boundary_mir",
+      "marker": "Verified padding for every logical input length with initialized backing storage",
+      "mir_contracts": 1,
+      "conversions": 0,
+      "seconds": 660,
+      "heap": "3G"
+    },
+    {
+      "name": "padding-equality-rewrite-abc",
+      "kind": "consequence",
+      "case": null,
+      "degree": 512,
+      "mir": null,
+      "marker": "Verified padding equality by scalar rewriting",
+      "mir_contracts": 0,
+      "conversions": 0,
+      "seconds": 120,
+      "heap": "2G"
+    },
+    {
+      "name": "padding-equality-1024",
+      "kind": "consequence",
+      "case": null,
+      "degree": 1024,
+      "mir": null,
+      "marker": "Verified padding equality by scalar rewriting",
+      "mir_contracts": 0,
+      "conversions": 0,
+      "seconds": 120,
+      "heap": "2G"
+    },
+    {
+      "name": "cyclic-1024-canonical",
+      "kind": "cyclic",
+      "case": "1024-12289",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified actual allocating cyclic slice API",
+      "mir_contracts": 5,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "4G"
+    },
+    {
+      "name": "cyclic-2048-12289-probe",
+      "kind": "cyclic",
+      "case": "2048-12289",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified actual allocating cyclic slice API",
+      "mir_contracts": 5,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "4G"
+    },
+    {
+      "name": "cyclic-2048-151019521-probe",
+      "kind": "cyclic",
+      "case": "2048-151019521",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified actual allocating cyclic slice API",
+      "mir_contracts": 5,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "4G"
+    },
+    {
+      "name": "caller-1024-normalized",
+      "kind": "caller",
+      "case": "1024-12289",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified complete consumer call at 1024-12289",
+      "mir_contracts": 13,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "3G"
+    },
+    {
+      "name": "caller-2048-12289",
+      "kind": "caller",
+      "case": "2048-12289",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified complete consumer call at 2048-12289",
+      "mir_contracts": 21,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "3G"
+    },
+    {
+      "name": "caller-2048-151019521",
+      "kind": "caller",
+      "case": "2048-151019521",
+      "degree": null,
+      "mir": "current_mir",
+      "marker": "Verified complete consumer call at 2048-151019521",
+      "mir_contracts": 21,
+      "conversions": 0,
+      "seconds": 900,
+      "heap": "3G"
+    },
+    {
+      "name": "model-link-1024-12289",
+      "kind": "model-link",
+      "case": "1024-12289",
+      "degree": null,
+      "mir": null,
+      "marker": "Verified complete consumer model composition",
+      "mir_contracts": 0,
+      "conversions": 2,
+      "seconds": 120,
+      "heap": "2G"
+    },
+    {
+      "name": "model-link-2048-12289",
+      "kind": "model-link",
+      "case": "2048-12289",
+      "degree": null,
+      "mir": null,
+      "marker": "Verified complete consumer model composition",
+      "mir_contracts": 0,
+      "conversions": 4,
+      "seconds": 120,
+      "heap": "2G"
+    },
+    {
+      "name": "model-link-2048-151019521",
+      "kind": "model-link",
+      "case": "2048-151019521",
+      "degree": null,
+      "mir": null,
+      "marker": "Verified complete consumer model composition",
+      "mir_contracts": 0,
+      "conversions": 4,
+      "seconds": 120,
+      "heap": "2G"
+    }
+  ]
+}

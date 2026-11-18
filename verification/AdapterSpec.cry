@@ -1,0 +1,17 @@
+module AdapterSpec where
+
+import ScalarSpec
+
+// Exact integer specification of centered representatives.
+centered : [64] -> Integer -> [64]
+centered p x = fromInteger (if r > value p / 2 then r - value p else r)
+  where r = x % value p
+
+foldCenter : {d} (fin d, d >= 1) => [64] -> [2*d][64] -> [2*d][64]
+foldCenter p a = [centered p (value (a @ i) - value (a @ (i + `d)))
+                 | i <- ([0 .. d-1] : [d]Integer)] # drop`{d} a
+
+foldRange : {d} (fin d, d >= 1) => [64] -> Integer -> Integer -> [2*d][64] -> [2*d][64]
+foldRange p start end a =
+  [if (start <= i) && (i < end) then centered p (value (a @ i) - value (a @ (i + `d)))
+   else a @ i | i <- ([0 .. d-1] : [d]Integer)] # drop`{d} a

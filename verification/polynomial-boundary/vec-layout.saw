@@ -1,0 +1,11 @@
+let poly_adt = mir_find_adt m "polynomial_ring::Polynomial" [mir_i64];
+let allocator = mir_find_adt m "alloc::alloc::Global" [];
+let vec_adt = mir_find_adt m "alloc::vec::Vec" [mir_i64, mir_adt allocator];
+let raw_vec_adt = mir_find_adt m "alloc::raw_vec::RawVec" [mir_i64, mir_adt allocator];
+let typed_allocator_adt = mir_find_adt m "crucible::alloc::TypedAllocator" [mir_i64];
+let inner_adt = mir_find_adt m "alloc::raw_vec::RawVecInner" [mir_adt typed_allocator_adt];
+let unique_adt = mir_find_adt m "core::ptr::unique::Unique" [mir_u8];
+let nonnull_adt = mir_find_adt m "core::ptr::non_null::NonNull" [mir_u8];
+let phantom_u8_adt = mir_find_adt m "core::marker::PhantomData" [mir_u8];
+let phantom_i64_adt = mir_find_adt m "core::marker::PhantomData" [mir_i64];
+let capacity_adt = mir_find_adt m "core::num::niche_types::UsizeNoHighBit" [];

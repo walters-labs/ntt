@@ -1,0 +1,18 @@
+// Native arithmetic rules match the normal forms produced by goal_eval.
+// Keep coefficient conversion concrete; only the proved centering function
+// is left opaque in the final algebra query.
+center_residue <- define "consumer_center_residue" {{ \(r : Integer) ->
+  fromInteger (if r > Scalar::value Ntt::modulus / 2
+               then r - Scalar::value Ntt::modulus else r) : [64] }};
+center_definition <- prove_print (do { goal_eval; z3; })
+  (scalar_formula {{ \(x : Integer) -> Adapter::centered Ntt::modulus x
+    == center_residue (x % Ntt::modulusInteger) }});
+x <- fresh_symbolic "x" {| Integer |};
+y <- fresh_symbolic "y" {| Integer |};
+value_native <- timeout 15000 (prove_print cvc5 (abstract_symbolic (term_eval (scalar_formula
+  {{ Scalar::value (Ntt::repr x) == x % Ntt::modulusInteger }}))));
+mod_native <- prove_print z3 (abstract_symbolic (term_eval (scalar_formula {{
+  ((x % Ntt::modulusInteger) - (y % Ntt::modulusInteger)) % Ntt::modulusInteger
+  == (x-y) % Ntt::modulusInteger }})));
+let native_ss = addsimps [value_native, mod_native] (cryptol_ss ());
+print "Verified centering and scalar representation lemmas";

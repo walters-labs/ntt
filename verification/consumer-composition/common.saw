@@ -1,0 +1,29 @@
+// The caller imports one concrete instance as Ntt.
+enable_experimental;
+import "ConsumerProduct.cry" as Consumer;
+import "../ScalarSpec.cry" as Scalar;
+import "../AdapterSpec.cry" as Adapter;
+let n = eval_int {{ fromInteger Ntt::size : [64] }};
+let d = eval_int {{ `n / 2 : [64] }};
+let q = eval_int {{ Ntt::modulus }};
+let formula t = rewrite (cryptol_ss ()) t;
+let scalar_formula t = formula (unfold_term ["modulus", "modulusInteger"] t);
+let padded_fold = {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Adapter::foldCenter Ntt::modulus
+    (Ntt::convolution (Consumer::pad a) (Consumer::pad b))) }};
+let product = {{ \(a : [d][64]) (b : [d][64]) ->
+  Consumer::negacyclic Ntt::modulus a b }};
+let full_statement = formula {{ \(a : [d][64]) (b : [d][64]) -> padded_fold a b == product a b }};
+let block_statement offset width = formula {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{width} (drop`{offset} (padded_fold a b)) ==
+  take`{width} (drop`{offset} (product a b)) }};
+let vector_type = str_concats ["Vec ", show d, " (Vec 64 Bool)"];
+let predicate_type = str_concats [vector_type, " -> ", vector_type, " -> Bool"];
+let proposition predicate = do {
+  let template = parse_core (str_concats ["\\(f : ", predicate_type,
+    ") -> (a : ", vector_type, ") -> (b : ", vector_type, ") -> EqTrue (f a b)"]);
+  return (beta_reduce_term (term_apply template [predicate]));
+};
+full_prop <- proposition full_statement;
+let output = get_env "NTT_MATH_OUTPUT";
+let block_path offset = str_concats [output, "/block-", show offset, "-32.core"];

@@ -1,0 +1,11 @@
+[package]
+name = "ntt-consumer-roots-proof"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "harness.rs"
+
+[dependencies]
+ntt = { path = "../.." }

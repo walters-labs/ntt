@@ -1,0 +1,8 @@
+import "@ROOT@/verification/Ntt2048.cry";
+let n = 2048;
+let staged = true;
+let signed_path = "@ROOT@/target/verification-consumer-composition/outputs/70d19f960d83207c0ccdf19f6d603f32589403457152ef34c7bc446f905f82e5/2048-12289/signed-product.core";
+let spectral_path = "@ROOT@/target/verification-math/2048-12289/spectral-identity.core";
+let model_path = "@ROOT@/target/verification-models/2048-12289/bridge.core";
+let output = "@ROOT@/target/verification-consumer-call/model-links/2048-12289";
+include "@ROOT@/verification/consumer-call/model-link.saw";

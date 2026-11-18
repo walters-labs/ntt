@@ -1,0 +1,48 @@
+import "AdapterSpec.cry";
+import "ScalarSpec.cry";
+m <- mir_load_module (get_opt 1);
+let n = eval_int {{ fromInteger Ntt::size : [64] }};
+let normalize_spec = do {
+  a <- mir_fresh_var "a" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p }};
+  mir_execute_func [mir_term a, mir_term p];
+  mir_return (mir_term {{ normalize p a }});
+  mir_postcond {{ normalize p a < p }};
+};
+rem_verified <- timeout 30000 (mir_verify m "core::num::{impl#3}::rem_euclid" [] false normalize_spec cvc5);
+let difference_spec = do {
+  low <- mir_fresh_var "low" mir_i64;
+  high <- mir_fresh_var "high" mir_i64;
+  p <- mir_fresh_var "p" mir_i64;
+  mir_precond {{ validModulus p && (low < p) && (high < p) }};
+  mir_execute_func [mir_term low, mir_term high, mir_term p];
+  mir_return (mir_term {{ centered p (value low - value high) }});
+};
+difference_verified <- timeout 60000 (mir_verify m "ring_lwe::utils::ntt_adapter::center_difference" [rem_verified] false difference_spec cvc5);
+let array_proof = w4_unint_z3 ["centered", "value"];
+let starts = eval_list {{ [0,64 .. Ntt::N/2 - 64] : [Ntt::N/128][64] }};
+blocks <- for starts (\start -> do {
+  let block_spec = do {
+    a <- mir_fresh_var "product" (mir_array n mir_i64);
+    buffer <- mir_alloc_mut (mir_array n mir_i64);
+    mir_precond {{ all (\offset -> (a @ (toInteger start + offset) < Ntt::modulus)
+                       && (a @ (toInteger start + offset + Ntt::size / 2) < Ntt::modulus))
+                  ([0..63] : [64]Integer) }};
+    mir_points_to buffer (mir_term a);
+    mir_execute_func [mir_slice_value buffer, mir_term {{ Ntt::modulus }},
+                      mir_term start, mir_term {{ start + 64 }}];
+    mir_points_to buffer (mir_term {{ foldRange Ntt::modulus (toInteger start) (toInteger start + 64) a }});
+  };
+  timeout 90000 (mir_verify m "ring_lwe::utils::ntt_adapter::fold_center_block" [difference_verified] false block_spec array_proof);
+});
+let fold_spec = do {
+  a <- mir_fresh_var "product" (mir_array n mir_i64);
+  buffer <- mir_alloc_mut (mir_array n mir_i64);
+  mir_precond {{ all (\x -> x < Ntt::modulus) a }};
+  mir_points_to buffer (mir_term a);
+  mir_execute_func [mir_slice_value buffer, mir_term {{ Ntt::modulus }}];
+  mir_points_to buffer (mir_term {{ foldCenter Ntt::modulus a }});
+};
+fold_verified <- timeout 90000 (mir_verify m "ring_lwe::utils::ntt_adapter::fold_center" blocks false fold_spec array_proof);
+print "Verified actual consumer in-place negacyclic fold and centering";

@@ -1,0 +1,156 @@
+--- a/benches/benchmark_polymul.rs
++++ b/benches/benchmark_polymul.rs
+@@ -7,7 +7,7 @@
+     let p: i64 = 17; // Prime modulus
+     let n: usize = 8;  // Length of the NTT (must be a power of 2)
+     let omega = omega(p, n); // n-th root of unity
+-    let params = Parameters::default();
++    let f = Polynomial::new(vec![1, 0, 0, 0, 1]);
+ 
+     // Input polynomials (padded to length `n`)
+     let poly_0 = Polynomial::new(vec![1, 2, 3, 4]);
+@@ -15,12 +15,12 @@
+ 
+     // Time standard multiplication
+     c.bench_function("Standard polymul (small)", |b| {
+-        b.iter(|| polymul(&poly_0, &poly_1, p, &params.f))
++        b.iter(|| polymul(&poly_0, &poly_1, p, &f))
+     });
+ 
+     // Time fast multiplication
+     c.bench_function("Fast polymul (small)", |b| {
+-        b.iter(|| polymul_fast(&poly_0, &poly_1, p, &params.f, omega))
++        b.iter(|| polymul_fast(&poly_0, &poly_1, p, &f, omega))
+     });
+ }
+ 
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -202,15 +202,49 @@
+ fn build_params(n: Option<usize>, q: Option<i64>, t: Option<i64>) -> Parameters {
+     let mut params = Parameters::default();
+ 
+-    if let (Some(n), Some(q), Some(t)) = (n, q, t) {
+-        params.n = n;
+-        params.q = q;
+-        params.t = t;
+-        let mut poly_vec = vec![0i64; params.n + 1];
+-        poly_vec[0] = 1;
+-        poly_vec[params.n] = 1;
+-        params.f = Polynomial::new(poly_vec);
+-    }
++    params.n = n.unwrap_or(params.n);
++    params.q = q.unwrap_or(params.q);
++    params.t = t.unwrap_or(params.t);
++    assert!(params.n.is_power_of_two(), "ring degree must be a positive power of two");
++    let length = params.n.checked_mul(2).expect("transform length overflow");
++    params.omega = crate::utils::root_for_parameters(params.q, length);
++    let mut poly_vec = vec![0i64; params.n + 1];
++    poly_vec[0] = 1;
++    poly_vec[params.n] = 1;
++    params.f = Polynomial::new(poly_vec);
+ 
+     params
+ }
++
++
++#[cfg(test)]
++mod parameter_consistency_tests {
++    use super::build_params;
++
++    fn check(n: Option<usize>, q: Option<i64>, t: Option<i64>, expected_n: usize, expected_q: i64, expected_extra: i64) {
++        let params = build_params(n, q, t);
++        assert_eq!((params.n, params.q, params.t), (expected_n, expected_q, expected_extra));
++        assert_eq!(params.f.coeffs().len(), expected_n + 1);
++        assert_eq!(params.f.coeffs()[0], 1);
++        assert_eq!(params.f.coeffs()[expected_n], 1);
++        assert!(params.f.coeffs()[1..expected_n].iter().all(|&x| x == 0));
++        assert!(ntt::verify_root_of_unity(params.omega, (2 * params.n).try_into().unwrap(), params.q));
++    }
++
++    #[test]
++    fn full_and_partial_overrides_refresh_the_root() {
++        check(None, None, None, 1024, 12289, 2);
++        check(Some(512), Some(12289), Some(4), 512, 12289, 4);
++        check(Some(512), None, None, 512, 12289, 2);
++        check(None, Some(151019521), None, 1024, 151019521, 2);
++        check(None, None, Some(4), 1024, 12289, 4);
++    }
++
++    #[test]
++    fn invalid_degrees_and_incompatible_moduli_are_rejected() {
++        for degree in [0, 3, 1usize << (usize::BITS - 1)] {
++            assert!(std::panic::catch_unwind(|| build_params(Some(degree), None, None)).is_err());
++        }
++        assert!(std::panic::catch_unwind(|| build_params(None, Some(17), None)).is_err());
++    }
++}
+--- a/src/test.rs
++++ b/src/test.rs
+@@ -94,14 +94,14 @@
+         let p: i64 = 17; // Prime modulus
+         let n: usize = 8;  // Length of the NTT (must be a power of 2)
+         let omega = omega(p, n); // n-th root of unity
+-        let params = Parameters::default();
++        let f = Polynomial::new(vec![1, 0, 0, 0, 1]);
+     
+         // Input polynomials (padded to length `n`)
+         let a = Polynomial::new(vec![1, 2, 3, 4]);
+         let b = Polynomial::new(vec![5, 6, 7, 8]);
+     
+-        let c_std = polymul(&a, &b, p, &params.f);
+-        let c_fast = polymul_fast(&a, &b, p, &params.f, omega);
++        let c_std = polymul(&a, &b, p, &f);
++        let c_fast = polymul_fast(&a, &b, p, &f, omega);
+ 
+         assert_eq!(c_std, c_fast, "test failed: {} != {}", c_std, c_fast);
+     }
+--- a/src/utils.rs
++++ b/src/utils.rs
+@@ -110,7 +110,9 @@
+ /// * `y` - polynomial to be multiplied.
+ /// * `q` - coefficient modulus.
+ ///	* `f` - polynomial modulus.
+-/// * `omega` - n-th root of unity
++/// * `omega` - root of order twice the degree of `f`
++///
++/// Requires `f = x^d + 1` with power-of-two `d`, and inputs of degree below `d`.
+ /// # Returns:
+ ///	polynomial in Z_q[X]/(f)
+ /// # Example:
+@@ -118,11 +120,11 @@
+ /// let p: i64 = 17; // Prime modulus
+ /// let n: usize = 8;  // Length of the NTT (must be a power of 2)
+ /// let omega = ntt::omega(p, n); // n-th root of unity
+-/// let params = ring_lwe::utils::Parameters::default();
++/// let f = polynomial_ring::Polynomial::new(vec![1, 0, 0, 0, 1]);
+ /// let a = polynomial_ring::Polynomial::new(vec![1, 2, 3, 4]);
+ /// let b = polynomial_ring::Polynomial::new(vec![5, 6, 7, 8]);
+-/// let c_std = ring_lwe::utils::polymul(&a, &b, p, &params.f);
+-/// let c_fast = ring_lwe::utils::polymul_fast(&a, &b, p, &params.f, omega);
++/// let c_std = ring_lwe::utils::polymul(&a, &b, p, &f);
++/// let c_fast = ring_lwe::utils::polymul_fast(&a, &b, p, &f, omega);
+ /// assert_eq!(c_std, c_fast, "test failed: {} != {}", c_std, c_fast);
+ /// ```
+ pub fn polymul_fast(
+@@ -132,10 +134,16 @@
+     f: &Polynomial<i64>, 
+     omega: i64
+ ) -> Polynomial<i64> {
+-    let n1 = x.coeffs().len();
+-    let n2 = y.coeffs().len();
+-    // Compute the nearest power of 2 at least twice the max of input degrees+1
+-    let n = 2*(std::cmp::max(n1, n2)).next_power_of_two();
++    let degree = f.coeffs().len().checked_sub(1)
++        .expect("polynomial modulus must be x^d + 1");
++    assert!(degree.is_power_of_two(), "ring degree must be a positive power of two");
++    assert!(f.coeffs()[0] == 1 && f.coeffs()[degree] == 1
++        && f.coeffs()[1..degree].iter().all(|&coefficient| coefficient == 0),
++        "polynomial modulus must be x^d + 1");
++    assert!(x.coeffs().len() <= degree && y.coeffs().len() <= degree,
++        "inputs must have degree less than the ring degree");
++    // Use the ring's fixed length even for zero or trimmed polynomials.
++    let n = degree.checked_mul(2).expect("transform length overflow");
+     // Pad coefficients
+     let x_pad = {
+         let mut coeffs = x.coeffs().to_vec();

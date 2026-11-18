@@ -1,0 +1,15 @@
+include "common.saw";
+include "scalars.saw";
+let statement = block_statement first 32;
+checked <- timeout 120000 (prove_print (do {
+  unfolding ["foldCenter", "convolution", "negacyclic", "pad"];
+  simplify (addsimp center_definition (cryptol_ss ()));
+  goal_eval_unint ["consumer_center_residue"];
+  simplify native_ss;
+  goal_eval_unint ["consumer_center_residue"];
+  unint_z3 ["consumer_center_residue"];
+}) statement);
+part_prop <- proposition statement;
+export_checked <- prove_print (goal_apply checked) part_prop;
+write_core (block_path first) part_prop;
+print (str_concats ["Verified closed consumer bridge block ", show n, " ", show q, " ", show first, " 32"]);

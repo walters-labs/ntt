@@ -1,0 +1,2 @@
+import "Ntt2048_151019521.cry" as Ntt;
+include "adapter-fold.saw";

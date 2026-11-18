@@ -1,0 +1,25 @@
+// Use the same instances as the completed transform proofs, not a separate
+// list of expected roots. No override or assumption for omega is used.
+import "Ntt1024.cry" as ModuleLwe;
+import "Ntt2048.cry" as RingLwe;
+import "Ntt2048_151019521.cry" as RingLweSquared;
+m <- mir_load_module (get_opt 1);
+let configurations = eval_list {{ [
+  (ModuleLwe::modulus, fromInteger ModuleLwe::size, ModuleLwe::parameters.root),
+  (RingLwe::modulus, fromInteger RingLwe::size, RingLwe::parameters.root),
+  (RingLweSquared::modulus, fromInteger RingLweSquared::size, RingLweSquared::parameters.root)
+] : [3]([64],[64],[64]) }};
+for configurations (\configuration -> do {
+  let selection_spec = do {
+    mir_execute_func [mir_term {{ configuration.0 }}, mir_term {{ configuration.1 }}];
+    mir_return (mir_term {{ configuration.2 }});
+  };
+  _ <- timeout 30000 (mir_verify m "ntt_consumer_roots_proof::roots::root_for_parameters" [] false selection_spec z3);
+  let acceptance_spec = do {
+    mir_execute_func [mir_term {{ configuration.2 }}, mir_term {{ configuration.1 }}, mir_term {{ configuration.0 }}];
+    mir_return (mir_term {{ True }});
+  };
+  _ <- timeout 30000 (mir_verify m "ntt::verify_root_of_unity" [] false acceptance_spec z3);
+  return ();
+});
+print "Verified root selection and validator acceptance for all three fixed configurations";

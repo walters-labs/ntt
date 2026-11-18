@@ -1,0 +1,40 @@
+--- a/src/utils.rs
++++ b/src/utils.rs
+@@ -1,3 +1,6 @@
++#[path = "ntt_padding.rs"]
++mod ntt_padding;
++
+ #[path = "ntt_adapter.rs"]
+ mod ntt_adapter;
+ 
+@@ -148,16 +151,8 @@
+     // Use the ring's fixed length even for zero or trimmed polynomials.
+     let n = degree.checked_mul(2).expect("transform length overflow");
+     // Pad coefficients
+-    let x_pad = {
+-        let mut coeffs = x.coeffs().to_vec();
+-        coeffs.resize(n, 0);
+-        coeffs
+-    };
+-    let y_pad = {
+-        let mut coeffs = y.coeffs().to_vec();
+-        coeffs.resize(n, 0);
+-        coeffs
+-    };
++    let x_pad = ntt_padding::padded(x, n);
++    let y_pad = ntt_padding::padded(y, n);
+ 
+     // Perform the polynomial multiplication
+     let mut r_coeffs = polymul_ntt(&x_pad, &y_pad, n, q, omega);
+--- /dev/null
++++ b/src/ntt_padding.rs
+@@ -0,0 +1,9 @@
++use polynomial_ring::Polynomial;
++
++/// Copy coefficients into a fixed-length, zero-padded transform buffer.
++pub fn padded(polynomial: &Polynomial<i64>, n: usize) -> Vec<i64> {
++    assert!(polynomial.coeffs().len() <= n);
++    let mut output = vec![0; n];
++    output[..polynomial.coeffs().len()].copy_from_slice(polynomial.coeffs());
++    output
++}
