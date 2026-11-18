@@ -1,5 +1,12 @@
 # Formal verification
 
+For cached evidence audits, use `codex/verification-checkpoint` and its retained
+`target/` artifacts. That source snapshot preserves the manifest and lockfile
+hashes used by the existing proof gates. Main contains release version 0.1.10;
+its production Rust and locked dependencies match the verified published source.
+The original development checkout at `/Users/jackson/GitHub/ntt` remains on the
+checkpoint branch; current main is at `/Users/jackson/GitHub/ntt-main`.
+
 Cryptol/SAW verifies the production Rust forward NTT, inverse NTT, and cyclic
 multiplication for these fixed parameter sets:
 
