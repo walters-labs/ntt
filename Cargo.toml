@@ -1,12 +1,13 @@
 [package]
 name = "ntt"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 description = "Fast NTT (number theoretic transform) for polynomial multiplication with prime, prime-power, and composite moduli."
 license = "MIT"
 documentation = "https://docs.rs/ntt"
 homepage = "https://github.com/walters-labs/ntt"
 repository = "https://github.com/walters-labs/ntt"
+exclude = ["verification/results/*"]
 
 [dependencies]
 reikna = "0.12.3"
