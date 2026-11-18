@@ -10,15 +10,18 @@ graphs match both original proof builds; the two consumer contexts match all
 three complete entry graphs. No local prerequisite substitutes were used.
 
 The immutable evidence bundle is `../results/2026-11-17-published.tar.gz`.
-Audit its packages, dependency checksums, public tags, source, transcripts,
+From the restored proof snapshot, audit the packages, dependency checksums, public tags, source, transcripts,
 MIR identities, and manifest with:
 
 ```sh
 python3 verification/publication/archive.py --check
 ```
 
-The original NTT proof checkout remains separate from its version-bumped
-release worktree so the historical proof gates can still run unchanged.
+The proof snapshot is retained as commit `1cf40e1` in main's history and the
+proof archives. To reproduce cached audits after local cleanup, check out that
+snapshot and restore the archived artifacts and original source/lockfile paths.
+The release worktree can be recreated at `v0.1.10` when required by the audit.
+The historical proof gates bind to that original snapshot.
 
 
 Publish in dependency order: NTT 0.1.10, Ring-LWE 0.1.9, Module-LWE 0.1.6.

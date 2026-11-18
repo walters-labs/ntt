@@ -76,11 +76,10 @@ seven batches for both fresh and reused transforms, including buffer handling.
 
 ## Formal verification
 
-Saved proof audits use the `codex/verification-checkpoint` branch with its
-retained build artifacts. The `main` branch carries the released `0.1.10`
-manifest; its production Rust and dependency lockfile match the published
-release. On the development machine, `ntt` is the frozen proof checkout and
-`ntt-main` is the current main checkout.
+Archived proof audits are tied to commit `1cf40e1` and their retained build
+artifacts. Restore that snapshot and its archived artifacts for cached audits;
+see `verification/publication/README.md`. The production Rust and dependency
+lockfile in `main` match the published `0.1.10` release.
 
 Cryptol/SAW proofs check the production Rust forward transform, inverse transform,
 and cyclic multiplication for **all signed `i64` inputs**, including both extrema:
