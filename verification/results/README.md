@@ -1,5 +1,233 @@
 # Verification checkpoints
 
+## November 17: prepared crate releases and package proof transfer
+
+The source patches are applied to local release branches for NTT 0.1.10,
+Ring-LWE 0.1.9, and Module-LWE 0.1.6. The NTT version bump uses a separate
+release worktree, preserving the original proof checkout. Both source and
+normalized package manifests pin the new consumer prerequisites and
+polynomial-ring 0.5.1 to exact versions.
+
+All three real `.crate` archives pass Cargo package verification using explicit
+local substitutes for the still-unpublished prerequisite versions. Their
+extracted sources pass 70 test executions, including documentation tests and
+NTT's debug/release runs, Clippy with warnings denied for NTT, and consumer
+benchmark compilation. Permanent consumer regressions include independent
+schoolbook checks at all three tuples and zero/trimmed module-vector inputs.
+
+The pinned-nightly build of the exact packaged consumer matches the existing
+proof artifact across all three full entry graphs: 2,347 reachable declarations,
+with only bijective identifiers and 7,319 source positions differing. All
+underlying proof gates still pass. This carries the existing fixed-array proof
+scope and trusted-checker assumptions to the prepared source without replaying
+large transform proofs.
+
+`2026-11-17-consumer-release.tar.gz` retains the exact packages, original and
+normalized manifests, lockfiles, source plan and application report, source
+snapshots, MIR, test/build transcripts, controls, and complete hash manifest.
+See `../consumer-release/README.md` for checks and locations. The changes are
+prepared locally; review/commit and publication remain. Publish NTT, then
+Ring-LWE, then Module-LWE, and repeat registry-backed verification as each
+prerequisite becomes available. Those final package hashes may differ because
+Cargo lockfile checksums and Git metadata change at publication.
+
+
+## November 17: composed Rust consumer entry paths
+
+All three fixed-array Rust entries through the actual patched Ring-LWE
+`polymul_fast` passed, for arbitrary signed coefficients and the zero
+polynomial. Their contracts include validation, padding, the allocating NTT
+call, folding/centering, truncation, backing coefficients, capacity bounds,
+and canonical trimming metadata. The independent centered negacyclic formula
+is connected through explicitly proved mathematical implications.
+
+The new suite has 13 jobs and 72 successful MIR contract checks, including
+supporting contracts, plus padding consequence witnesses and ten exact
+proposition matches. All jobs sum to 1,453.414 seconds (24.2 minutes); some
+were run concurrently. Maximum child RSS was 4.417 GiB. The complete entry
+proofs themselves took 60.163 / 161.861 / 162.247 seconds. Nine negative
+controls reject missing jobs/consequences, wrong tuples, changed transcripts,
+changed MIR instructions/constants/layouts, identifier collisions, and a
+changed imported contract. All prior required proof gates still pass.
+
+SAW 1.6 cannot serialize MIR MethodSpecs. This checkpoint reuses them through
+`mir_unsafe_assume_spec`, with a separate trusted checker requiring a previous
+successful proof, exact contract identity, matching parameter/spec bindings,
+and isomorphism of complete reachable MIR declaration graphs. Only identifier
+renaming and source-position metadata may differ. A separately proved Hoare
+consequence removes the constructor's zero-tail padding mask. The acceptance
+result depends on these checks; the individual SAW sessions contain imports
+and are not unconditional standalone proofs.
+
+`2026-11-17-consumer-call.tar.gz` retains the exact accepted reports, transcripts,
+MIR, proof imports, scripts/templates, dependency bindings, lockfile, build
+provenance, mathematical exports, controls, source snapshots, and file manifest.
+Earlier archives supply the already proved dependencies. See
+`../consumer-call/README.md` for replay, audit, representation scope, and trust
+assumptions. Applying and verifying the prepared patches in the release
+repositories remains. No arbitrary generic-parameter or cryptosystem claim
+is made.
+
+
+## November 17: complete consumer mathematical bridge
+
+Zero-padded cyclic convolution followed by half-folding and centering is now
+proved equal to the independent single-sum negacyclic product at all three
+fixed tuples. The theorem uses the existing `NttSpec` convolution and signed
+normalization definitions and `AdapterSpec` folding definition. Every signed
+`i64` input vector is covered, including zero-extension of short polynomials.
+
+All 80 closed coefficient blocks passed, covering 2,560 output positions.
+The coverage and signed-input composition implications also passed, along
+with all 83 proposition matches in the strict final gate. The two-worker run
+took 1,384.907 seconds (23.1 minutes), with 0.963 GiB maximum child RSS under
+2 GiB per-process heap ceilings. Cached graph validation took 0.096 seconds.
+
+A deliberately wrong addition formula was rejected on the wrapping-monomial
+example. A wrong-modulus proposition control exposed that SAW 1.6's
+`check_convertible` prints `Not convertible` while returning successfully.
+`check-consumer-bridge.py` now requires the exact expected successful matches
+and rejects missing, extra, or mismatched results. Seven metadata controls
+and three proposition-match controls passed. Auditing the earlier NTT archives
+found all 678 recorded proposition matches successful.
+
+Both existing 2048-point gates and the polynomial-boundary gate still pass.
+The archived November 16 1024-point proof was audited against its original
+proof sources, reports, build, MIR, and current implementation/interface.
+Its production source and shared formulas are unchanged; its original harness
+is preserved with only the six known 2048-point wrappers appended.
+
+`2026-11-17-consumer-bridge.tar.gz` retains the complete closed-block graph,
+conditional composition proofs, exact proposition exports, scripts, source
+snapshots, transcripts, toolchain, negative controls, prior-evidence audits,
+and a file-hash manifest. See `../consumer-composition/README.md` for replay
+and the required strict gate. This completes the mathematical composition;
+verification through the actual whole Rust adapter call and release integration
+remain open.
+
+## November 17: polynomial construction and complete bounded padding
+
+The actual `polynomial-ring` 0.5.1 constructor passed at vector lengths 512 and
+1024, preserving its backing coefficients, pointer and capacity and returning
+the canonical trailing-zero-trimmed representation. The actual Ring-LWE
+private padding helper passed for every logical input length 0..512 and
+0..1024, arbitrary signed `i64` coefficients, and all valid capacities. These
+two degree domains cover the padding used by all three fixed transform tuples.
+
+All 1,540 MIR contracts and four native adapter/vector regressions passed.
+The two-worker run took 1,325.659 seconds (22.1 minutes), with 0.637 GiB maximum
+child RSS. Each SAW process had a 2 GiB heap ceiling. Cached checks completed
+in less than a second and rejected all seven missing/duplicate/wrong-artifact
+controls. An incorrect leading-one padding specification produced a genuine
+output-postcondition counterexample. Patch application, idempotency and
+changed-source rejection passed; both previous 2048-point NTT gates still pass.
+
+`2026-11-17-polynomial-boundary.tar.gz` retains exact MIR, source snapshots,
+all 52 proof-batch reports and transcripts, scripts, lockfiles, toolchain
+record, native log, patch and checker controls, and a manifest hashing every
+file. The earlier pause archive remains an immutable historical snapshot.
+See `../polynomial-boundary/README.md` for the maintained workflow. Full
+consumer-call composition and its centered negacyclic-product contract remain
+open, along with applying the prepared patches to the release repositories.
+
+## November 17: consumer reduction and centering
+
+The actual consumer's in-place reduction helper passed at all three fixed
+tuples. Each proof checks the full lower-half centered-difference formula and
+preservation of every upper-half word, assuming canonical NTT output coefficients.
+The scalar formula, every 64-coefficient block, and the actual outer loop are
+proved in the same process; no block is admitted. The full workflow has 51
+successful MIR contract checks, including repeated scalar/library support.
+
+| Case | Contracts | Wall seconds | Maximum child RSS |
+| --- | ---: | ---: | ---: |
+| Scalar centering wrapper, all valid moduli and signed inputs | 2 | 4.514 | 0.49 GiB |
+| Length 1024, modulus 12289 | 11 | 39.640 | 1.24 GiB |
+| Length 2048, modulus 12289 | 19 | 81.228 | 2.11 GiB |
+| Length 2048, modulus 151019521 | 19 | 81.806 | 2.03 GiB |
+
+The sequential run took 215.734 seconds including build and four passing native
+adapter/vector regressions. A wrong-sign specification produced a genuine
+postcondition counterexample. Patch application, idempotency, and rejection of
+changed source passed. The two existing 2048-point NTT gates still pass.
+
+The consumer patch reuses the NTT result buffer, eliminating intermediate
+polynomial construction and additional reduction/normalization buffers. The
+first direct proof hit an unsupported symbolic allocation after trimming;
+larger unpartitioned probes also hit their bounded resource limits. Those
+attempts are not successful proofs. The final reductions use 2/3 GiB heaps
+with bounded timeouts. A full-size padding probe failed after 91 seconds with
+a solver-protocol error near its internal deadline and remains open.
+
+`2026-11-17-adapter-reduction.tar.gz` retains the successful reports/transcripts,
+exact MIR, source snapshot, consumer patch, native lockfiles and logs, control
+evidence, and diagnostic records. Its manifest hashes every file. The earlier
+NTT and consumer archives are unchanged. At this checkpoint the full adapter
+composition, padding, and polynomial representation boundary remained unproved;
+the later boundary checkpoint above completes the component proofs. See
+`../consumer-adapter/README.md` for replay and precise scope.
+
+## November 17: consumer parameter consistency
+
+The follow-up consumer patches fix the stored-root/input-length mismatch and
+both CLI builders' stale roots and ignored partial overrides. The adapter now
+uses `2*d` from `f=x^d+1`, including for zero and trimmed polynomials, validates
+the modulus shape, and requires inputs reduced to degree below `d`. Toy examples
+and the benchmark now use `x^4+1` with their order-eight root modulo 17.
+
+Fifteen native checks passed: four adapter/vector tests, two tests of each
+actual CLI builder, and seven Ring-LWE documentation examples. Benchmarks also
+compile. The adapter comparisons cover all three fixed tuples with signed
+extrema and independent wide-accumulator schoolbook multiplication. The first
+isolated run took 34.852 seconds including compilation. This is an implementation
+and regression milestone; it adds no formal adapter proof.
+
+Old-source controls reproduce failures in the original adapter and both CLI
+builders. Patch application, idempotency, and rejection of changed source also
+passed. An earlier attempt exposed a stale Cargo executable when old and patched
+checkouts shared a build directory; its result was discarded. The successful
+run isolates each positive target and separates all old-source controls.
+
+`2026-11-17-parameters.tar.gz` retains exact patched source, patches and their
+before/after hashes, native Cargo lockfiles, transcripts, control scripts,
+source hashes, and the inherited toolchain record. Earlier proof archives and
+the NTT Rust/proof sources are unchanged. See `../consumer-parameters/README.md`
+for patch order, replay commands, and the remaining formal adapter obligation.
+
+## November 17: fixed root selection
+
+The three fixed consumer cases now have six additional SAW/MIR contracts:
+three selections of the roots from the existing Cryptol parameter instances,
+and three acceptance checks against the actual NTT validator. The final run,
+`consumer-roots-20261117T181711828993Z-wkg2yfiy`, passed with vacuity checking in
+4.196 seconds at about 0.56 GiB maximum child RSS, under a 2 GiB heap and
+120-second deadline. The controller also passed two native regression tests.
+
+Revision-bound patches add the identical selector source to Module-LWE and
+Ring-LWE and replace their three relevant generation calls. Both patched
+libraries compiled with the local NTT dependency, and one native smoke test
+of their two actual default constructors passed. The formal contracts cover
+the selector component, not the whole consumer constructors or adapters.
+The patches are retained in `../consumer-roots/` for application in the consumer
+repositories; local patched source copies are under the ignored target directory.
+
+A negative control changing the expected root by one failed its literal-return
+postcondition with a counterexample. Patch application, idempotency, and
+rejection of changed source were checked for both consumers. Both completed
+2048-point provenance gates still pass against unchanged NTT Rust sources.
+
+A bounded probe of the original `omega` path stopped at an unsupported
+integer-to-float cast in Reikna's prime sieve. It does not prove or refute the
+generator. The selector retains the generator for other parameter pairs, which
+remain outside these formal contracts.
+
+`2026-11-17-roots.tar.gz` retains the new reports, transcripts, exact linked MIR,
+source snapshot, consumer revisions and original archives, patched source,
+native smoke harness and lockfile, negative controls, and toolchain versions.
+Its manifest hashes every retained file. Existing transform archives are
+unchanged and retain the full evidence behind the rechecked transform gates.
+See `../consumer-roots/README.md` for replay commands and the remaining scope.
+
 ## November 17: 2048-point proofs
 
 Both concrete specifications and six fixed-size Rust wrappers are implemented.

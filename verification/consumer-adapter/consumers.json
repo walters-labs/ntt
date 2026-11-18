@@ -1,0 +1,30 @@
+{
+  "ring-lwe": {
+    "revision": "555b26a579779f265bce237d9c2d3d5c91090372",
+    "requires": "verification/consumer-parameters/ring-lwe.patch",
+    "patch": "ring-lwe.patch",
+    "selector_sha256": "760a5c7857c9a106b99910c87cb44ce821ee4336be49c30074690b0d42eb346a",
+    "files": {
+      "benches/benchmark_polymul.rs": {
+        "before_sha256": "9790f0263becc606ca516610364d4101c19f6d277f7ebd7678ac59f9a0eda8ed",
+        "after_sha256": "9790f0263becc606ca516610364d4101c19f6d277f7ebd7678ac59f9a0eda8ed"
+      },
+      "src/main.rs": {
+        "before_sha256": "30f085dea4f75fdd0a135f2d6cc32b7594df195828069be96dee0cade65da2c3",
+        "after_sha256": "30f085dea4f75fdd0a135f2d6cc32b7594df195828069be96dee0cade65da2c3"
+      },
+      "src/test.rs": {
+        "before_sha256": "3a990ba892a7b3d1ef26ee9df0022688aae3c225ebe5316f3cd5544330f69a09",
+        "after_sha256": "3a990ba892a7b3d1ef26ee9df0022688aae3c225ebe5316f3cd5544330f69a09"
+      },
+      "src/utils.rs": {
+        "before_sha256": "558653c0768d61e3caaa8e73fe5b3046ee76ac90c6da1872757b4e7904431c57",
+        "after_sha256": "c4a8cf2afdd7c43b2b04b2040aec29f13dc5c4b927b41f7df25de118e38e8fde"
+      },
+      "src/ntt_adapter.rs": {
+        "before_sha256": null,
+        "after_sha256": "4731230b7df9d0862b332942b6f129c026ead3016052b254b1774718681a11f1"
+      }
+    }
+  }
+}

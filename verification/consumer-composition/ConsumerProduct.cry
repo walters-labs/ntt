@@ -1,0 +1,18 @@
+module ConsumerProduct where
+
+import ScalarSpec as Scalar
+import AdapterSpec as Adapter
+
+pad : {d} (fin d) => [d][64] -> [2*d][64]
+pad a = a # zero
+
+// Independent one-sum formula for multiplication modulo x^d + 1.
+// The arguments are the canonical normalized coefficient vectors supplied to
+// the NTT. Integer products and sums do not overflow.
+negacyclic : {d} (fin d, d >= 1) => [64] -> [d][64] -> [d][64] -> [d][64]
+negacyclic p a b =
+  [Adapter::centered p (sum
+    [if j <= k then Scalar::value (a @ j) * Scalar::value (b @ ((k + `d - j) % `d))
+     else -(Scalar::value (a @ j) * Scalar::value (b @ ((k + `d - j) % `d)))
+     | j <- ([0 .. d-1] : [d]Integer)])
+   | k <- ([0 .. d-1] : [d]Integer)]

@@ -1,0 +1,41 @@
+--- a/src/utils.rs
++++ b/src/utils.rs
+@@ -1,9 +1,12 @@
++#[path = "ntt_roots.rs"]
++mod ntt_roots;
++pub(crate) use ntt_roots::root_for_parameters;
++
+ use polynomial_ring::Polynomial;
+ use rand_distr::{Uniform, Distribution};
+ use rand::SeedableRng;
+ use rand::rngs::StdRng;
+ use ring_lwe::utils::{polyadd, polymul_fast, gen_uniform_poly,nearest_int};
+-use ntt::omega;
+ use base64::{engine::general_purpose, Engine as _};
+ use bincode;
+ 
+@@ -27,7 +30,7 @@
+         let n = 512;
+         let q = 12289;
+         let k = 8;
+-        let omega = omega(q, 2 * n);
++        let omega = root_for_parameters(q, 2 * n);
+         let mut poly_vec = vec![0i64; n + 1];
+         poly_vec[0] = 1;
+         poly_vec[n] = 1;
+--- /dev/null
++++ b/src/ntt_roots.rs
+@@ -0,0 +1,13 @@
++/// Roots used by the three fixed, verified NTT configurations.
++///
++/// This file is copied unchanged to `src/ntt_roots.rs` in both LWE consumers.
++/// Other parameter pairs retain the existing root-generation behavior; the
++/// formal contracts cover only the three explicit branches below.
++pub fn root_for_parameters(modulus: i64, length: usize) -> i64 {
++    match (modulus, length) {
++        (12289, 1024) => 10302,
++        (12289, 2048) => 1945,
++        (151019521, 2048) => 51689479,
++        _ => ntt::omega(modulus, length),
++    }
++}

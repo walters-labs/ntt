@@ -1,0 +1,40 @@
+// This is a closed implication. The controller validates the closed proof
+// of every premise separately; read_core loads propositions, never proofs.
+include "common.saw";
+let parts = eval_int {{ `d / 32 : [64] }};
+let part_indices = map eval_int (eval_list {{ [0..parts-1] : [parts][64] }});
+let offsets = map (\i -> eval_int {{ `i * 32 : [64] }}) part_indices;
+block_props <- for offsets (\offset -> proposition (block_statement offset 32));
+for part_indices (\i -> do {
+  saved <- read_core (block_path (nth offsets i));
+  check_convertible (nth block_props i) saved;
+});
+let vector_parts = map (\first -> formula {{ \(x : [d][64]) (y : [d][64]) ->
+  take`{32} (drop`{first} x) == take`{32} (drop`{first} y) }}) offsets;
+let vector_equal = formula {{ \(x : [d][64]) (y : [d][64]) -> x == y }};
+let names = map (\i -> str_concat "p" (show i)) part_indices;
+let predicate_binders = str_concats (map (\name -> str_concats ["(", name, " : ", predicate_type, ") "]) names);
+let vector_premises = str_concats (map (\name -> str_concats ["EqTrue (", name, " x y) -> "]) names);
+let vector_template = parse_core (str_concats ["\\", predicate_binders,
+  "(eq : ", predicate_type, ") -> (x : ", vector_type, ") -> (y : ", vector_type, ") -> ",
+  vector_premises, "EqTrue (eq x y)"]);
+coverage_rule <- prove_print (w4_unint_z3 [])
+  (beta_reduce_term (term_apply vector_template (concat vector_parts [vector_equal])));
+let proposition_binders = str_concats (map (\name -> str_concats ["(", name, " : Prop) "]) names);
+let proposition_premises = str_concats (map (\name -> str_concat name " -> ") names);
+let template = parse_core (str_concats ["\\", proposition_binders,
+  "(result : Prop) -> ", proposition_premises, "result"]);
+let conditional = beta_reduce_term (term_apply template (concat block_props [full_prop]));
+rec apply_parts i =
+  if eval_bool {{ `i == (`parts : [64]) }} then return ()
+  else do { goal_apply_hyp i; apply_parts (eval_int {{ `i + 1 : [64] }}); };
+checked <- prove_print (do {
+  goal_intro_hyps parts;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  goal_apply coverage_rule;
+  apply_parts 0;
+}) conditional;
+write_core (str_concat output "/coverage.core") conditional;
+write_core (str_concat output "/full.core") full_prop;
+print (str_concats ["Verified complete consumer bridge coverage ", show n, " ", show q]);

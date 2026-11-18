@@ -30,8 +30,12 @@ Distinguish the ring degree `d` from the length `N` passed to `ntt`.
 
 The numeric roots above were checked using this checkout's `omega` and the
 independent product tests in `tests/consumer_contracts.rs`. Formal transform
-proofs now cover all three fixed tuples; the consumers' root-generation calls
-remain a separate obligation.
+proofs now cover all three fixed tuples. The fixed selector in `consumer-roots/`
+also has SAW proofs that its three branches select the same roots and that the
+NTT validator accepts them. Revision-bound consumer patches replace the calls
+listed above; those patches have been compiled and tested in local source copies
+and still need to be applied in the consumer repositories before release.
+Generic `omega` calls remain outside this formal claim.
 
 Source anchors:
 
@@ -42,7 +46,7 @@ Source anchors:
 
 ## The cyclic-to-negacyclic connection
 
-The ring-LWE adapter chooses
+At the inspected revision, the ring-LWE adapter chooses
 `N = 2 * next_power_of_two(max(x.coeffs().len(), y.coeffs().len()))`, pads both
 inputs to `N`, calls the cyclic product, and reduces the result modulo `f`.
 Its coefficient normalization returns centered representatives, whereas `ntt`
@@ -52,8 +56,37 @@ For inputs of degree less than `d`, padding to `2*d` prevents cyclic wraparound
 of their ordinary product. Reduction modulo `x^d+1` then gives
 `result[i] = (product[i] - product[i+d]) mod q`. The independent tests compare
 this composition with direct negacyclic schoolbook multiplication, including
-signed extrema. A formal proof of the consumer's actual padding, polynomial
-representation, reduction, and centering code is still required.
+signed extrema. The later checkpoints below prove its padding, polynomial
+constructor, reduction, and centering components. The subsequent
+`consumer-call/` checkpoint composes three fixed-array entries through the
+complete patched consumer call.
+
+The follow-up patches in `consumer-parameters/` use the fixed length `N=2*d`
+derived from `f=x^d+1`, including for zero and trimmed inputs. They validate `f`
+and require input degrees below `d`. Native tests of the actual patched adapter
+match an independent negacyclic schoolbook reference at all three fixed tuples.
+The `consumer-call/` checkpoint now checks this behavior through the three
+fixed-array entry paths, including zero and trimmed polynomial values.
+
+The subsequent `consumer-adapter/` patch folds and centers the canonical NTT
+result in place. Its actual private helpers now have complete MIR proofs for
+all three fixed tuples, including preservation of the upper half.
+
+The `polynomial-boundary/` patch then introduces a private padding helper that
+allocates the fixed transform-length buffer before copying the input prefix.
+Its actual consumer implementation is proved for all input lengths 0..512 and
+0..1024, including empty vectors and every valid capacity. The actual
+`polynomial-ring` 0.5.1 constructor is proved to preserve coefficient values and
+canonically remove trailing zeros from 512/1024-word vectors. The 1,540 MIR
+checks and four whole-adapter native regressions passed.
+
+The subsequent `consumer-composition/` checkpoint proves the mathematical
+connection: zero-padded cyclic convolution followed by the centered half-fold
+equals the independent negacyclic-product formula. Eighty closed block proofs
+cover every coefficient at all three fixed tuples; checked composition extends
+the result to arbitrary signed inputs through the existing NTT normalization.
+All 83 proposition boundaries passed the strict gate. The actual complete
+Rust consumer function remains to be connected to these component contracts.
 
 ## Parameter-consistency findings
 
@@ -64,7 +97,9 @@ representation, reduction, and centering code is still required.
    neither default root above has order 8. The current `PreparedNtt::new`
    correctly rejects these combinations. The adapter should either use a fixed
    transform length derived from the ring parameters or obtain a suitable root
-   for each chosen length. This needs a consumer-side change and proof.
+   for each chosen length. **Fixed in the prepared parameter patches:** the
+   adapter now derives a fixed length from the ring modulus. Its native
+   regressions and the three fixed-array consumer entry proofs pass.
 
 2. **CLI overrides retain the old root.**
    Both [module-LWE](https://github.com/walters-labs/module-lwe/blob/6fd32d3f70e8a0d9154f3edd1726267cbec9b3ff/src/main.rs#L197)
@@ -73,10 +108,22 @@ representation, reduction, and centering code is still required.
    retain the default `omega`. The tests reproduce rejection for the documented
    module-LWE `(d=256,q=7681)` example and ring-LWE `(d=512,q=12289)` override.
    Recomputing the root resolves the NTT parameter mismatch. Partial overrides
-   are ignored by these builders; their supported CLI contract also needs review.
+   are also ignored by the inspected builders. **Fixed in the prepared parameter
+   patches:** each override takes effect independently, and both builders
+   regenerate the matching root and polynomial modulus. Native tests cover
+   defaults, complete and partial overrides, and invalid NTT parameters.
 
 These are findings about the pinned source and this checkout's NTT contract.
-The consumer repositories have not been modified or rebuilt as part of this audit.
+The original inventory describes the pinned revisions. The later root-selection
+milestone modifies and builds local copies using the tracked patches in
+`consumer-roots/`. The subsequent `consumer-parameters/` patches fix both
+findings in separate local copies and have 15 passing native checks, including
+documentation examples. The patches still need applying in the release
+repositories at that earlier checkpoint. They are now applied in the local
+release branches recorded in `consumer-release/README.md`. The actual Ring-LWE
+adapter has composed verification
+through three fixed-array entry paths; see `consumer-call/README.md` for its
+precise scope and checked-import trust boundary.
 No whole-cryptosystem correctness or security claim follows from the NTT proofs.
 
 ## Completion targets
@@ -88,14 +135,23 @@ No whole-cryptosystem correctness or security claim follows from the NTT proofs.
    table. Its own transform needs a separate specification and implementation proof.
 3. **Partially completed:** establish parameter-validation contracts. Length-one
    validation and acceptance of the three larger consumer tuples are proved;
-   general validation and the consumers' actual root-generation calls remain.
+   general validation remains outside the fixed target. The fixed root-selector
+   component is now proved for all three pairs, with prepared consumer patches;
+   arbitrary generator calls and full consumer integration are not proved.
 4. **Completed:** forward, inverse, and cyclic-multiplication proofs passed for
    all signed coefficients at `(1024,12289,10302)`, `(2048,12289,1945)`, and
    `(2048,151019521,51689479)`. The 2048-point gates connect closed mathematical,
    transform-model, and Rust proofs to the exact source and MIR build.
-5. Resolve the consumer parameter findings and prove the actual negacyclic
-   adapters. Record exact dependency versions and repeat verification against
-   the code that is released.
+5. **Local release integration prepared:** the consumer patch series,
+   including reduction and padding, are applied on separate release branches.
+   The NTT 0.1.10, Ring-LWE 0.1.9, and Module-LWE 0.1.6 crate archives are checked
+   in `consumer-release/`. The padding, constructor, coefficient-folding, and centering
+   components and mathematical negacyclic composition are formally proved.
+   The three complete Rust entry paths now pass the checked composition gate
+   in `consumer-call/`, including the returned coefficients and trim metadata.
+   Native lockfiles are retained with the results; record exact dependencies
+   for the formal integration build. Registry-backed package checks remain
+   after publishing the prerequisites in dependency order.
 
 The 256-point proof remains a valid earlier milestone. The full default consumer
 transform targets are 1024 and 2048 points; none is covered by that proof alone.

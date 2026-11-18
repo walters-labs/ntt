@@ -1,0 +1,35 @@
+[
+  {
+    "case": "1024-12289",
+    "length": 1024,
+    "modulus": 12289,
+    "root": 10302,
+    "instance": "verification/Ntt1024.cry",
+    "instance_sha256": "ed7d091e992aafe6b1f6735458c627f93c5329b48532601019244776581e7e52",
+    "script": "verification/adapter-fold-1024-12289.saw",
+    "contracts": 11,
+    "heap": "2G"
+  },
+  {
+    "case": "2048-12289",
+    "length": 2048,
+    "modulus": 12289,
+    "root": 1945,
+    "instance": "verification/Ntt2048.cry",
+    "instance_sha256": "3eff470e0b3e851ca630244c8a896f8ae2cbb5eae110161e6d1bd4f4a710defe",
+    "script": "verification/adapter-fold-2048-12289.saw",
+    "contracts": 19,
+    "heap": "3G"
+  },
+  {
+    "case": "2048-151019521",
+    "length": 2048,
+    "modulus": 151019521,
+    "root": 51689479,
+    "instance": "verification/Ntt2048_151019521.cry",
+    "instance_sha256": "b5e5ff18587e323e30896a326bf00345f87dc7c80a55ecb6edbaf321decbae2f",
+    "script": "verification/adapter-fold-2048-151019521.saw",
+    "contracts": 19,
+    "heap": "3G"
+  }
+]

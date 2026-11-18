@@ -55,16 +55,84 @@ Results, transcripts, exact MIR, toolchain records, and source versions are
 retained in `results/2026-11-17.tar.gz`. See `results/README.md` for timings and
 the unsuccessful attempts that led to the bounded workflow.
 
+## Completed fixed root-selection milestone
+
+`consumer-roots/` contains a selector that returns the verified constant for
+each of the three fixed `(modulus,length)` pairs and preserves `omega` as the
+fallback for other pairs. Six SAW/MIR contracts prove the three selections
+against the existing Cryptol instances and the actual validator's acceptance.
+They take about four seconds and 0.56 GiB maximum child RSS. The NTT library's
+Rust sources are unchanged; both existing 2048-point proof gates still pass.
+
+Revision-bound patches update the consumers' default constructors and the
+squared-modulus test. They were applied to local source copies, and a native
+test of both actual defaults passed after compiling the patched libraries.
+The patches still need to be applied in the consumer repositories before
+release. The formal claim is about the shared selector component; the full
+consumer adapters remain outside it. See `consumer-roots/README.md` for scope,
+commands, and the separate evidence archive.
+
+A direct proof of `omega` hit an unsupported integer-to-float cast in its
+factorization dependency. No generator result was assumed. The fixed branches
+remove that dependency from these three cases; other generator calls remain
+outside the verification target.
+
 ## Next steps, one at a time
 
-1. Cover parameter generation at the exact calls used by the consumers, if they
-   continue to compute roots rather than use the proved constants. This does
-   not require a claim about all possible calls to `omega`.
-2. Resolve the consumer parameter mismatches and verify the actual padding,
-   negacyclic reduction, and coefficient representation described in
-   `consumers.md`. Pin the resolved dependencies for integration proofs.
-3. Record source/toolchain/dependency versions and automate the required proof
-   runs against the exact code to be released.
+The parameter mismatches now have prepared fixes and native regression
+coverage in `consumer-parameters/`: the adapter uses a ring-derived fixed
+length, and both CLI builders refresh roots after honoring individual overrides.
+The actual adapter passes independent schoolbook comparisons at all three fixed
+tuples, and both CLI builders pass their regressions. Fifteen tests passed,
+including documentation examples; benchmarks compile. This adds no formal
+adapter claim and does not modify the NTT library or its existing proof sources.
+
+The next reduction checkpoint is now complete: `consumer-adapter/` contains
+an in-place folding/centering implementation and 51 successful MIR contract
+checks, including supporting scalar/library contracts. The complete lower-half
+formula and preservation of the upper half are proved at all three fixed tuples.
+The full run, including native regressions, took about 3.6 minutes and reached
+2.11 GiB maximum child RSS.
+
+The polynomial boundary checkpoint is also complete. The actual constructor
+preserves and canonically trims 512/1024-word input vectors, and the consumer's
+private fixed-buffer helper pads every input length 0..512 and 0..1024 correctly,
+with arbitrary signed coefficients and valid capacities. All 1,540 MIR checks
+and four native regressions passed in 22.1 minutes with two workers and 0.64 GiB
+maximum child RSS. Cached validation takes less than a second. See
+`polynomial-boundary/README.md` for exact contracts, patch order, and replay.
+
+The mathematical composition is now complete in `consumer-composition/`.
+Eighty closed blocks cover all 2,560 output positions across the three tuples.
+Checked coverage and normalization implications establish the centered
+negacyclic-product formula for arbitrary signed input vectors. All 83
+proposition connections passed the strict acceptance gate. The run took
+23.1 minutes with two workers and 0.96 GiB maximum child RSS; cached validation
+takes less than a second.
+
+The actual Rust consumer-call composition is now complete for the three
+fixed-array entries in `consumer-call/`. All 72 new MIR contracts, the padding
+consequence witnesses, and ten exact proposition boundaries passed. The three
+complete entry proofs took 60.2, 161.9, and 162.2 seconds; all new jobs sum to
+24.2 minutes, with 4.42 GiB maximum child RSS. The import checker validates
+previous closed proofs, identical contracts, and complete reachable MIR graphs
+before accepting cached MethodSpecs. See `consumer-call/README.md` for the
+precise input representation and extended trusted boundary.
+
+The release-integration checkpoint in `consumer-release/` applies the patches
+to local release branches and prepares NTT 0.1.10, Ring-LWE 0.1.9, and Module-LWE
+0.1.6. Their exact crate sources are tested and all three rebuilt consumer
+entry graphs match the successful composed proof. The original NTT proof
+checkout remains intact; its version bump lives in a separate release worktree.
+
+1. Review and commit the prepared source and evidence. Publish NTT, Ring-LWE,
+   then Module-LWE in dependency order, repeating package verification against
+   the registry as each prerequisite becomes available.
+2. Retain the resulting final package hashes and keep the checked proof graphs
+   and cached audits in the release workflow. Direct calls on arbitrary
+   independently allocated `Polynomial` heap layouts remain outside this
+   fixed-array entry checkpoint, as do other generic API parameter tuples and
+   whole-cryptosystem verification.
 
 ## Already established
 

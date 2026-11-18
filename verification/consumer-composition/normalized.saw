@@ -1,0 +1,25 @@
+// Compose the full bridge with the NTT's actual signed-i64 normalization.
+include "common.saw";
+saved <- read_core (str_concat output "/full.core");
+check_convertible full_prop saved;
+normalize_padding <- timeout 30000 (prove_print (do { goal_eval; z3; }) (formula
+  {{ \(a : [d][64]) -> Ntt::normalizePoly (Consumer::pad a)
+    == Consumer::pad (Ntt::normalizePoly a) }}));
+let signed_statement = formula {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Adapter::foldCenter Ntt::modulus
+    (Ntt::convolution (Ntt::normalizePoly (Consumer::pad a))
+                      (Ntt::normalizePoly (Consumer::pad b))))
+  == Consumer::negacyclic Ntt::modulus (Ntt::normalizePoly a) (Ntt::normalizePoly b) }};
+signed_prop <- proposition signed_statement;
+let template = parse_core "\\(premise : Prop) (result : Prop) -> premise -> result";
+let conditional = beta_reduce_term (term_apply template [full_prop, signed_prop]);
+checked <- prove_print (do {
+  goal_intro_hyp;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify (addsimp normalize_padding (cryptol_ss ()));
+  goal_apply_hyp 0;
+}) conditional;
+write_core (str_concat output "/normalized.core") conditional;
+write_core (str_concat output "/signed-product.core") signed_prop;
+print (str_concats ["Verified signed-input consumer bridge ", show n, " ", show q]);

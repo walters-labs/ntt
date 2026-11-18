@@ -1,0 +1,40 @@
+enable_experimental;
+import "@ROOT@/verification/Ntt1024.cry";
+let n = eval_int {{ fromInteger size : [64] }};
+let q = eval_int {{ modulus }};
+let half_n = eval_int {{ `n / 2 : [64] }};
+let steps = eval_list {{ stageSteps }};
+m <- mir_load_module (get_opt 1);
+include "@ROOT@/verification/arithmetic.saw";
+include "@ROOT@/verification/lemmas.saw";
+include "@ROOT@/target/verification-consumer-call/import-kernel-1024.saw";
+include "@ROOT@/verification/multiplication-spec.saw";
+let math_formula t = rewrite (cryptol_ss ()) t;
+let public_proof = w4_unint_z3 ["forward", "inverse", "normalizePoly", "value", "repr", "normalize"];
+include "@ROOT@/verification/pointwise-result-spectral.saw";
+include "@ROOT@/verification/pointwise-bounds.saw";
+let cyclic_spec = do {
+  a <- mir_fresh_var "a" (mir_array n mir_i64);
+  b <- mir_fresh_var "b" (mir_array n mir_i64);
+  ar <- mir_alloc (mir_array n mir_i64);
+  br <- mir_alloc (mir_array n mir_i64);
+  mir_points_to ar (mir_term a);
+  mir_points_to br (mir_term b);
+  mir_execute_func [mir_slice_value ar, mir_slice_value br,
+                    mir_term {{ `n:[64] }}, mir_term {{ modulus }}, mir_term {{ parameters.root }}];
+  result <- mir_vec_of "result" mir_i64 (mir_term {{ spectral_product (normalizePoly a) (normalizePoly b) }});
+  mir_return result;
+  mir_postcond {{ canonical (spectral_product (normalizePoly a) (normalizePoly b)) }};
+};
+let proof = do {
+  ix <- goal_num;
+  if eval_bool {{ (`ix == 0) || (`ix >= `n-2) }} then print_goal_summary else return ();
+  if eval_bool {{ `ix <= `n }} then multiply_proof else do {
+    simplify pointwise_result_ss;
+    w4_unint_z3 ["forward", "inverse", "normalizePoly", "value", "repr", "normalize", "canonical"];
+  };
+};
+cyclic_verified <- timeout 900000 (mir_verify m "ntt::polymul_ntt"
+  [normalize_verified, add_verified, sub_verified, mul_verified, forward_kernel, inverse_kernel]
+  false cyclic_spec proof);
+print "Verified actual allocating cyclic slice API";

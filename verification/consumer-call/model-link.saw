@@ -1,0 +1,95 @@
+// Conditional composition only. The checker discharges all three mathematical
+// premises against the existing convolution, model, and consumer-bridge graphs.
+enable_experimental;
+import "../consumer-composition/ConsumerProduct.cry" as Consumer;
+import "../AdapterSpec.cry" as Fold;
+include "../multiplication-spec.saw";
+include "../staged-product.saw";
+let formula t = rewrite (cryptol_ss ()) t;
+let math_formula = formula;
+include "../model-statements.saw";
+let d = eval_int {{ `n / 2 : [64] }};
+let spectral_identity = formula {{ \(a : Poly) (b : Poly) -> convolution a b == spectral_product a b }};
+spectral_prop <- native_proposition 2 n spectral_identity;
+let reverse_spectral = formula {{ \(a : Poly) (b : Poly) -> spectral_product a b == convolution a b }};
+reverse_spectral_prop <- native_proposition 2 n reverse_spectral;
+let stage_identity = formula {{ \(a : Poly) (b : Poly) -> spectral_product a b == staged_product a b }};
+stage_prop <- native_proposition 2 n stage_identity;
+let reverse_stage = formula {{ \(a : Poly) (b : Poly) -> staged_product a b == spectral_product a b }};
+reverse_stage_prop <- native_proposition 2 n reverse_stage;
+let actual_product = if staged then staged_product else spectral_product;
+let final_model = {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Fold::foldCenter modulus
+    (actual_product (normalizePoly (Consumer::pad a))
+                    (normalizePoly (Consumer::pad b)))) }};
+// This is the exact coefficient term used by the MIR caller contract.
+let rust_final_model = {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Fold::foldCenter modulus
+    (actual_product (normalizePoly (a # (zero:[d][64])))
+                    (normalizePoly (b # (zero:[d][64]))))) }};
+padding_model <- prove_print (do { goal_eval; trivial; })
+  (formula {{ \(a : [d][64]) -> Consumer::pad a == a # (zero:[d][64]) }});
+check_convertible (rewrite (addsimp padding_model (cryptol_ss ())) final_model)
+                  (rewrite (cryptol_ss ()) rust_final_model);
+let signed_statement = formula {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Fold::foldCenter modulus
+    (convolution (normalizePoly (Consumer::pad a)) (normalizePoly (Consumer::pad b))))
+  == Consumer::negacyclic modulus (normalizePoly a) (normalizePoly b) }};
+signed_prop <- native_proposition 2 d signed_statement;
+let result_statement = formula {{ \(a : [d][64]) (b : [d][64]) ->
+  final_model a b == Consumer::negacyclic modulus (normalizePoly a) (normalizePoly b) }};
+result_prop <- native_proposition 2 d result_statement;
+saved_signed <- read_core signed_path;
+check_convertible signed_prop saved_signed;
+if staged then do {
+  saved_spectral <- read_core spectral_path;
+  check_convertible spectral_prop saved_spectral;
+  saved_model <- read_core model_path;
+  let model_template = parse_core "\\(p : Prop) (q : Prop) (r : Prop) -> p -> q -> r";
+  let model_bridge = beta_reduce_term (term_apply model_template (concat model_props [stage_prop]));
+  check_convertible model_bridge saved_model;
+} else return ();
+let implication = parse_core "\\(p : Prop) (q : Prop) -> p -> q";
+let imply p q = beta_reduce_term (term_apply implication [p,q]);
+poly_reflexive <- prove_print (do { goal_eval; trivial; }) (formula {{ \(a : Poly) -> (a == a) == True }});
+small_reflexive <- prove_print (do { goal_eval; trivial; }) (formula {{ \(a : [d][64]) -> (a == a) == True }});
+let ss = addsimps [poly_reflexive, small_reflexive] (cryptol_ss ());
+reverse_spectral_verified <- prove_print (do {
+  goal_intro_hyp;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify_local [0] ss;
+  trivial;
+}) (imply spectral_prop reverse_spectral_prop);
+reverse_stage_verified <- prove_print (do {
+  goal_intro_hyp;
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify_local [0] ss;
+  trivial;
+}) (imply stage_prop reverse_stage_prop);
+let premises = if staged then [spectral_prop, stage_prop, signed_prop] else [spectral_prop, signed_prop];
+let reverse_premises = if staged then [reverse_stage_prop, reverse_spectral_prop, signed_prop]
+                                 else [reverse_spectral_prop, signed_prop];
+let template = if staged then parse_core "\\(p : Prop) (q : Prop) (r : Prop) (s : Prop) -> p -> q -> r -> s"
+                        else parse_core "\\(p : Prop) (q : Prop) (r : Prop) -> p -> q -> r";
+let reverse_composition = beta_reduce_term (term_apply template (concat reverse_premises [result_prop]));
+composition_verified <- prove_print (do {
+  goal_intro_hyps (if staged then 3 else 2);
+  a <- goal_intro "a";
+  b <- goal_intro "b";
+  simplify_local (if staged then [0,1] else [0]) ss;
+  goal_apply_hyp (if staged then 2 else 1);
+}) reverse_composition;
+let composition = beta_reduce_term (term_apply template (concat premises [result_prop]));
+verified <- prove_print (do {
+  goal_intro_hyps (if staged then 3 else 2);
+  goal_apply composition_verified;
+  if staged then do { goal_apply reverse_stage_verified; goal_apply_hyp 1; } else return ();
+  goal_apply reverse_spectral_verified;
+  goal_apply_hyp 0;
+  goal_apply_hyp (if staged then 2 else 1);
+}) composition;
+write_core (str_concat output "/model-composition.core") composition;
+write_core (str_concat output "/consumer-result.core") result_prop;
+print "Verified complete consumer model composition";

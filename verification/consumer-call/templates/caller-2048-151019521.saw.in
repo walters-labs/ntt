@@ -1,0 +1,61 @@
+enable_experimental;
+import "@ROOT@/verification/Ntt2048_151019521.cry";
+import "@ROOT@/verification/Ntt2048_151019521.cry" as Ntt;
+import "@ROOT@/verification/AdapterSpec.cry" as Fold;
+import "@ROOT@/verification/ScalarSpec.cry" as Scalar;
+let n = 2048;
+let d = 1024;
+m <- mir_load_module (get_opt 1);
+include "@ROOT@/verification/polynomial-boundary/vec-layout.saw";
+include "@ROOT@/verification/staged-product.saw";
+let constructor_name = mir_find_name m "polynomial_ring::{impl#1}::new" [mir_i64];
+include "@ROOT@/target/verification-consumer-call/import-constructor.saw";
+include "@ROOT@/target/verification-consumer-call/import-padding-normalized.saw";
+include "@ROOT@/target/verification-consumer-call/import-cyclic-2048-151019521.saw";
+let make_buffer data cap =
+  mir_struct_value raw_vec_adt [
+    mir_struct_value inner_adt [
+      mir_struct_value unique_adt [
+        mir_struct_value nonnull_adt [mir_cast_raw_ptr data mir_u8],
+        mir_struct_value phantom_u8_adt []],
+      mir_struct_value capacity_adt [mir_term cap],
+      mir_struct_value typed_allocator_adt [mir_struct_value phantom_i64_adt []]],
+    mir_struct_value allocator [], mir_struct_value phantom_i64_adt []];
+let f_length = eval_int {{ `d+1:[64] }};
+let f_constructor_spec = do {
+  data <- mir_alloc_raw_ptr_const_multi f_length mir_i64;
+  mir_points_to_multi data (mir_term {{ [1] # (zero:[d-1][64]) # [1] }});
+  cap <- mir_fresh_var "capacity" mir_usize;
+  mir_precond {{ (`d+1 <= cap) && (cap <= 1152921504606846975) }};
+  let input = mir_struct_value vec_adt [make_buffer data cap, mir_term {{ `d+1:[64] }}];
+  mir_execute_func [input];
+  mir_return (mir_struct_value poly_adt [input]);
+  mir_points_to_multi data (mir_term {{ [1] # (zero:[d-1][64]) # [1] }});
+};
+f_constructor_verified <- timeout 30000 (mir_verify m constructor_name [] true f_constructor_spec abc);
+include "@ROOT@/verification/consumer-call/fold.saw";
+let final_model = {{ \(a : [d][64]) (b : [d][64]) ->
+  take`{d} (Fold::foldCenter Ntt::modulus
+    (staged_product (Ntt::normalizePoly (a # (zero:[d][64])))
+                      (Ntt::normalizePoly (b # (zero:[d][64]))))) }};
+let caller_spec = do {
+  a <- mir_fresh_var "input_a" (mir_array d mir_i64);
+  b <- mir_fresh_var "input_b" (mir_array d mir_i64);
+  mir_execute_func [mir_term a, mir_term b];
+  data <- mir_alloc_raw_ptr_const_multi d mir_i64;
+  mir_points_to_multi data (mir_term {{ final_model a b }});
+  cap <- mir_fresh_var "result_capacity" mir_usize;
+  retained <- mir_fresh_var "result_length" mir_usize;
+  mir_return (mir_struct_value poly_adt [
+    mir_struct_value vec_adt [make_buffer data cap, mir_term retained]]);
+  mir_postcond {{ (`d <= cap) && (cap <= 1152921504606846975) }};
+  mir_postcond {{ retained <= (`d:[64]) }};
+  mir_postcond {{ all (\i -> (i < retained) || (final_model a b @ i == 0)) ([0..d-1] : [d][64]) }};
+  mir_postcond {{ all (\i -> (retained != i+1) || (final_model a b @ i != 0)) ([0..d-1] : [d][64]) }};
+};
+let caller_proof = do { print_goal_summary; w4_unint_z3 ["stagedForward", "stagedInverse", "normalizePoly", "normalize", "value", "repr",
+                               "Fold::foldCenter", "Fold::centered", "Scalar::value"]; };
+caller_verified <- timeout 600000 (mir_verify m "ntt_consumer_call_proof::multiply_2048_151019521"
+  [constructor_verified, f_constructor_verified, padding_verified, cyclic_verified, fold_verified]
+  true caller_spec caller_proof);
+print "Verified complete consumer call at 2048-151019521";

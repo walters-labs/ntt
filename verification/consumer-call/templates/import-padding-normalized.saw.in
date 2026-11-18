@@ -1,0 +1,28 @@
+let padding_spec = do {
+  let c = d;
+  a <- mir_fresh_var "a" (mir_array c mir_i64);
+  data <- mir_alloc_raw_ptr_const_multi c mir_i64;
+  mir_points_to_multi data (mir_term a);
+  cap <- mir_fresh_var "capacity" mir_usize;
+  mir_precond {{ (`c <= cap) && (cap <= 1152921504606846975) }};
+  let phantom_i64 = mir_struct_value phantom_i64_adt [];
+  let phantom_u8 = mir_struct_value phantom_u8_adt [];
+  let nonnull = mir_struct_value nonnull_adt [mir_cast_raw_ptr data mir_u8];
+  let unique = mir_struct_value unique_adt [nonnull, phantom_u8];
+  let inner = mir_struct_value inner_adt [unique, mir_struct_value capacity_adt [mir_term cap],
+                                         mir_struct_value typed_allocator_adt [phantom_i64]];
+  let buffer = mir_struct_value raw_vec_adt [inner, mir_struct_value allocator [], phantom_i64];
+  length <- mir_fresh_var "input_length" mir_usize;
+  mir_precond {{ length <= (`d:[64]) }};
+  mir_precond {{ all (\i -> (i < length) || (a @ i == 0)) ([0..d-1] : [d][64]) }};
+  let input = mir_struct_value vec_adt [buffer, mir_term length];
+  polynomial <- mir_ref_of (mir_struct_value poly_adt [input]);
+  mir_execute_func [polynomial, mir_term {{ 2*`d:[64] }}];
+  output <- mir_vec_of "output" mir_i64 (mir_term {{
+    a # (zero:[d][64]) }});
+  mir_return output;
+  mir_points_to_multi data (mir_term a);
+
+};
+
+padding_verified <- mir_unsafe_assume_spec m "ring_lwe::utils::ntt_padding::padded" padding_spec;

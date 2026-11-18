@@ -10,6 +10,8 @@ multiplication for these fixed parameter sets:
 | 8 | 289 = 17² | 110 | Every `i64` |
 | 256 | 12289 | 8340 | Every `i64` |
 | 1024 | 12289 | 10302 | Every `i64` |
+| 2048 | 12289 | 1945 | Every `i64` |
+| 2048 | 151019521 | 51689479 | Every `i64` |
 
 There are no coefficient-range preconditions on these public-operation proofs.
 Negative coefficients, `i64::MIN`, and `i64::MAX` are included. The scalar
@@ -42,6 +44,35 @@ A separate foundation suite verifies scalar arithmetic for arbitrary valid
 moduli, length-one parameter validation, the three larger consumer parameter
 tuples, and the finite modular-exponentiation domain used by ML-KEM. See the
 coverage below and the [pinned consumer inventory](consumers.md).
+
+The consumer's in-place negacyclic folding and centering components also have
+MIR proofs at all three fixed consumer tuples. See the separate
+[consumer reduction checkpoint](consumer-adapter/README.md) for its contracts,
+and the [polynomial boundary checkpoint](polynomial-boundary/README.md) for
+verified constructor behavior and all 1,538 bounded padding lengths. The latter
+passed 1,540 MIR checks and four native regressions in 22.1 minutes, with
+0.64 GiB maximum child RSS.
+
+The [consumer mathematical bridge](consumer-composition/README.md) also passed
+for all three tuples. Its 80 closed coefficient blocks cover every output
+position, and checked composition establishes the complete centered negacyclic
+product formula for arbitrary signed input vectors. The run took 23.1 minutes
+with two workers and 0.96 GiB maximum child RSS. The final acceptance gate checks
+all 83 serialized-proposition boundaries explicitly; SAW's diagnostic
+`check_convertible` command does not fail the process on a mismatch. Formal
+composition through the actual complete Rust consumer call is now checked for
+three fixed-array entries; see [the consumer-call checkpoint](consumer-call/README.md).
+It covers the actual patched adapter's validation, padding, NTT allocation,
+folding, truncation, and constructor metadata. Its acceptance gate discharges
+cached MIR imports against prior proofs, exact contracts, and reachable MIR
+graph identity. This extends the trusted boundary to that checker; running an
+individual script with imported contracts is insufficient.
+
+The [prepared crate releases](consumer-release/README.md) apply those consumer
+patches in real release branches and prepare `ntt 0.1.10`, `ring-lwe 0.1.9`,
+and `module-lwe 0.1.6`. Their exact packaged sources pass native checks and
+match the complete verified MIR entry graphs. Publication and a final check
+against public-registry prerequisites follow review of those branches.
 
 ## Toolchain
 
@@ -487,8 +518,8 @@ multiplication are complete for all three selected tuples.
 | Milestone | Remaining work |
 | --- | --- |
 | Consumer transform sizes | Complete at `(1024,12289,10302)`, `(2048,12289,1945)`, and `(2048,151019521,51689479)`, including stage, DFT-model, kernel, convolution, and public-operation proofs. |
-| Parameter generation | Connect the consumers' actual `omega` calls to the roots required by those proofs. Acceptance of a supplied root does not prove root generation. |
-| Consumer integration | Fix stale roots after parameter changes and input-dependent padding; prove actual padding, reduction modulo `x^d+1`, and coefficient representation. Pin the resolved dependency versions. |
+| Parameter generation | The fixed selector's three branches are verified; revision-bound patches replace the relevant consumer generator calls. Apply the patches in the release repositories. Generic root generation remains outside scope. |
+| Consumer integration | Parameter fixes are prepared and tested. Padding, polynomial constructors, reduction/centering, and the mathematical negacyclic composition are proved. Verify the complete Rust adapter call against that product contract using the pinned dependencies. |
 | Reproducible release | Run the proofs against the exact release source and record toolchain, dependency, and proof results; add an automated verification gate. |
 
 The complete 1024-point split proof passed on November 16. The mathematical

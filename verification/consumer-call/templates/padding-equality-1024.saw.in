@@ -1,0 +1,14 @@
+enable_experimental;
+let d = 1024;
+keep_rule <- prove_print (w4_unint_z3 []) (parse_core "(x : Vec 64 Bool) -> (k : Bool) -> EqTrue (boolEq (bvEq 64 (ite (Vec 64 Bool) k x (bvNat 64 0)) x) (or k (bvEq 64 x (bvNat 64 0))))");
+keep_rule_reverse <- prove_print (w4_unint_z3 []) (parse_core "(x : Vec 64 Bool) -> (k : Bool) -> EqTrue (boolEq (bvEq 64 x (ite (Vec 64 Bool) k x (bvNat 64 0))) (or k (bvEq 64 x (bvNat 64 0))))");
+let padding_equality = rewrite (cryptol_ss ()) {{ \(a : [d][64]) (count : [64]) ->
+  all (\i -> (i < count) || (a @ i == 0)) ([0..d-1] : [d][64]) ==>
+  ([if j < count then a @ j else 0 | j <- ([0..d-1] : [d][64])] # (zero:[d][64]))
+  == a # (zero:[d][64]) }};
+proved <- timeout 30000 (prove_print (do {
+  goal_eval;
+  simplify (addsimps [keep_rule, keep_rule_reverse] basic_ss);
+  abc;
+}) padding_equality);
+print "Verified padding equality by scalar rewriting";

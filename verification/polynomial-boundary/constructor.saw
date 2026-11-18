@@ -1,0 +1,31 @@
+enable_experimental;
+m <- mir_load_module (get_opt 1);
+include "vec-layout.saw";
+let constructor_name = mir_find_name m "polynomial_ring::{impl#1}::new" [mir_i64];
+let constructor_spec = do {
+  a <- mir_fresh_var "a" (mir_array d mir_i64);
+  data <- mir_alloc_raw_ptr_const_multi d mir_i64;
+  mir_points_to_multi data (mir_term a);
+  cap <- mir_fresh_var "capacity" mir_usize;
+  mir_precond {{ (`d <= cap) && (cap <= 1152921504606846975) }};
+  let phantom_i64 = mir_struct_value phantom_i64_adt [];
+  let phantom_u8 = mir_struct_value phantom_u8_adt [];
+  let nonnull = mir_struct_value nonnull_adt [mir_cast_raw_ptr data mir_u8];
+  let unique = mir_struct_value unique_adt [nonnull, phantom_u8];
+  let inner = mir_struct_value inner_adt [unique, mir_struct_value capacity_adt [mir_term cap],
+                                         mir_struct_value typed_allocator_adt [phantom_i64]];
+  let buffer = mir_struct_value raw_vec_adt [inner, mir_struct_value allocator [], phantom_i64];
+  let input = mir_struct_value vec_adt [buffer, mir_term {{ `d:[64] }}];
+  mir_execute_func [input];
+  retained <- mir_fresh_var "retained" mir_usize;
+  mir_return (mir_struct_value poly_adt [mir_struct_value vec_adt [buffer, mir_term retained]]);
+  mir_points_to_multi data (mir_term a);
+  mir_postcond {{ retained <= (`d:[64]) }};
+  mir_postcond {{ all (\i -> (i < retained) || (a @ i == 0)) ([0..d-1] : [d][64]) }};
+  mir_postcond {{ all (\i -> (retained != i+1) || (a @ i != 0)) ([0..d-1] : [d][64]) }};
+  return ();
+};
+checked <- timeout constructor_timeout (mir_verify m constructor_name [] false constructor_spec abc);
+print "Verified polynomial constructor structure and unchanged backing coefficients";
+
+print (str_concat "Verified constructor coefficient count " (show d));

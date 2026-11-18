@@ -1,0 +1,36 @@
+{
+  "module-lwe": {
+    "revision": "6fd32d3f70e8a0d9154f3edd1726267cbec9b3ff",
+    "archive_url": "https://codeload.github.com/walters-labs/module-lwe/tar.gz/6fd32d3f70e8a0d9154f3edd1726267cbec9b3ff",
+    "patch": "module-lwe.patch",
+    "files": {
+      "src/utils.rs": {
+        "before_sha256": "d845d4ec25ccdce79254dcafe12afc8faeeafdc36f6a5d86d2624c3428ad4c75",
+        "after_sha256": "2e63ade67562c70e39b9d029b88ad4e01093efb92075448fa02c1ed5230f9496"
+      },
+      "src/ntt_roots.rs": {
+        "before_sha256": null,
+        "after_sha256": "760a5c7857c9a106b99910c87cb44ce821ee4336be49c30074690b0d42eb346a"
+      }
+    }
+  },
+  "ring-lwe": {
+    "revision": "555b26a579779f265bce237d9c2d3d5c91090372",
+    "archive_url": "https://codeload.github.com/walters-labs/ring-lwe/tar.gz/555b26a579779f265bce237d9c2d3d5c91090372",
+    "patch": "ring-lwe.patch",
+    "files": {
+      "src/utils.rs": {
+        "before_sha256": "60f6e85d1adb30d2506b0301d6dd47ae8a5069ec29496630803cb25bfa8a83da",
+        "after_sha256": "d3986b91fb44bd4d5b2022989c0a207556f9b61e8295e2dd09fd1d9203ea9818"
+      },
+      "src/test.rs": {
+        "before_sha256": "9e39bde98ba404617ba9e15845bde6c21fc23e5837c2cc592c949b07df3fd151",
+        "after_sha256": "2c3cb1954b5f0d3311a2fa5f6f100df4797d7d268762c7dfc40984662e542fa8"
+      },
+      "src/ntt_roots.rs": {
+        "before_sha256": null,
+        "after_sha256": "760a5c7857c9a106b99910c87cb44ce821ee4336be49c30074690b0d42eb346a"
+      }
+    }
+  }
+}
